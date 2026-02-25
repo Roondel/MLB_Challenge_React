@@ -1,0 +1,78 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --color-accent: #c8102e;
+  --color-accent-hover: #a00d24;
+  --color-accent-muted: #c8102e33;
+  --color-dark-900: #0a0a0a;
+  --color-dark-800: #141414;
+  --color-dark-700: #1e1e1e;
+  --color-dark-600: #2a2a2a;
+  --color-dark-500: #3a3a3a;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-dark-900);
+  color: #ffffff;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-dark-900);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-dark-600);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-dark-500);
+}
+
+/* Leaflet overrides for dark theme */
+.leaflet-container {
+  background: var(--color-dark-900) !important;
+}
+.leaflet-popup-content-wrapper {
+  background: var(--color-dark-800) !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+}
+.leaflet-popup-tip {
+  background: var(--color-dark-800) !important;
+}
+
+/* Toast slide-in animation */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Page fade-in */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* Smooth transitions for interactive elements */
+* {
+  scroll-behavior: smooth;
+}
