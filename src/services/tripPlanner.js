@@ -196,7 +196,10 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
       .sort((a, b) => new Date(a.gameTime) - new Date(b.gameTime));
   }
 
-  // Lock in starting park as first stop
+  // If the starting city is one of the selected parks, always lock it in
+  // as stop #1. The user said they're starting here — don't send them
+  // elsewhere and back. Parks whose games fall before this first game
+  // are genuinely unreachable and will be flagged as such.
   if (remaining.has(startParkId)) {
     const startGame = sortedGames[startParkId]?.find(g =>
       new Date(g.gameTime).getTime() >= currentTime + BUFFER_BEFORE_MS
@@ -226,21 +229,19 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
         driveFromPrev: null,
       });
 
-      currentTime = departureAfterGame(gameEndMs);
+      currentTime = gameEndMs;
     } else {
+      const park = PARK_BY_ID[startParkId];
       unreachableParks.push({
         parkId: startParkId,
-        parkName: PARK_BY_ID[startParkId]?.venueName || 'Unknown',
-        teamName: PARK_BY_ID[startParkId]?.teamName || 'Unknown',
+        parkName: park?.venueName || 'Unknown',
+        teamName: park?.teamName || 'Unknown',
         reason: 'No home games at starting city in your date range',
       });
     }
   }
 
-  // Greedy loop: pick next park+game with earliest game start time.
-  // "Earliest game start" naturally favours nearby parks (you arrive sooner,
-  // unlocking earlier games) while still allowing a farther park to win if
-  // it has a significantly earlier game on the calendar.
+  // Greedy loop: pick the next park+game with least wait time
   while (remaining.size > 0) {
     let best = null;
 

@@ -72,19 +72,6 @@ export default function ParkDetailPage() {
         </div>
       </div>
 
-      {/* Dev-only: test notification button */}
-      {import.meta.env.DEV && (
-        <button
-          onClick={async () => {
-            const reg = await registerServiceWorker();
-            showParkNotification(park, reg);
-          }}
-          className="w-full px-4 py-2 bg-dark-700 border border-dark-500 hover:border-accent text-gray-400 hover:text-white text-sm rounded-lg transition-colors"
-        >
-          [Dev] Fire Test Notification
-        </button>
-      )}
-
       {/* GPS proximity banner */}
       {nearby && (
         <div className="flex items-center justify-between bg-accent/10 border border-accent/30 rounded-xl px-5 py-4">
