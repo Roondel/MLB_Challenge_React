@@ -132,6 +132,51 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
       .sort((a, b) => new Date(a.gameTime) - new Date(b.gameTime));
   }
 
+  // If the starting city is one of the selected parks, always lock it in
+  // as stop #1. The user said they're starting here — don't send them
+  // elsewhere and back. Parks whose games fall before this first game
+  // are genuinely unreachable and will be flagged as such.
+  if (remaining.has(startParkId)) {
+    const startGame = sortedGames[startParkId]?.find(g =>
+      new Date(g.gameTime).getTime() >= currentTime + BUFFER_BEFORE_MS
+    );
+
+    remaining.delete(startParkId);
+
+    if (startGame) {
+      const gameStartMs = new Date(startGame.gameTime).getTime();
+      const gameEndMs = gameStartMs + GAME_DURATION_MS;
+
+      itinerary.push({
+        parkId: startParkId,
+        parkName: PARK_BY_ID[startParkId]?.venueName,
+        teamName: PARK_BY_ID[startParkId]?.teamName,
+        city: PARK_BY_ID[startParkId]?.city,
+        state: PARK_BY_ID[startParkId]?.state,
+        game: {
+          gamePk: startGame.gamePk,
+          date: startGame.date,
+          gameTime: startGame.gameTime,
+          dayNight: startGame.dayNight,
+          awayTeamName: startGame.awayTeamName,
+        },
+        arrival: new Date(currentTime).toISOString(),
+        gameEnd: new Date(gameEndMs).toISOString(),
+        driveFromPrev: null,
+      });
+
+      currentTime = gameEndMs;
+    } else {
+      const park = PARK_BY_ID[startParkId];
+      unreachableParks.push({
+        parkId: startParkId,
+        parkName: park?.venueName || 'Unknown',
+        teamName: park?.teamName || 'Unknown',
+        reason: 'No home games at starting city in your date range',
+      });
+    }
+  }
+
   // Greedy loop: pick the next park+game with least wait time
   while (remaining.size > 0) {
     let best = null; // { parkId, game, arrivalTime, waitTime, distance, dtMs }

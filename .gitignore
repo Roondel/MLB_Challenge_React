@@ -1,5 +1,6 @@
 dist/
 .claude*
+CLAUDE.md
 node_modules/
 .env
 .env.local

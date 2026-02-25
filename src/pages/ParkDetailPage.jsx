@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, MapPin, Calendar, Star, Pencil, Trash2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Pencil, Trash2, CheckCircle2, Navigation, Cloud } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useVisits } from '../hooks/useVisits';
 import { useToast } from '../components/layout/Toast';
+import { useGeoProximity } from '../hooks/useGeoProximity';
 import CheckInModal from '../components/parks/CheckInModal';
 import StarRating from '../components/parks/StarRating';
 
@@ -18,6 +19,7 @@ export default function ParkDetailPage() {
   const park = state.parks.find(p => p.teamId === Number(parkId));
   const visit = getVisitByParkId(Number(parkId));
   const visited = isVisited(Number(parkId));
+  const { nearby } = useGeoProximity(park?.lat, park?.lng);
 
   if (!park) {
     return (
@@ -69,6 +71,29 @@ export default function ParkDetailPage() {
         </div>
       </div>
 
+      {/* GPS proximity banner */}
+      {nearby && (
+        <div className="flex items-center justify-between bg-accent/10 border border-accent/30 rounded-xl px-5 py-4">
+          <div className="flex items-center gap-3">
+            <Navigation size={18} className="text-accent flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-accent">
+                {visited ? `You're back at ${park.venueName}!` : `You're at ${park.venueName}!`}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">GPS detected you're nearby</p>
+            </div>
+          </div>
+          {!visited && (
+            <button
+              onClick={() => setShowCheckIn(true)}
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0"
+            >
+              Check In Now
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Visit Journal */}
       {visited && visit ? (
         <div className="bg-dark-800 rounded-2xl border border-dark-600 p-6 space-y-4">
@@ -93,7 +118,7 @@ export default function ParkDetailPage() {
           <div className="flex items-center gap-4 text-sm">
             <div className="flex items-center gap-1 text-gray-400">
               <Calendar size={14} />
-              {new Date(visit.visitDate).toLocaleDateString('en-US', {
+              {new Date(visit.visitDate + 'T12:00:00').toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',
@@ -120,6 +145,16 @@ export default function ParkDetailPage() {
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Notes</p>
               <p className="text-gray-300 text-sm leading-relaxed">{visit.personalNote}</p>
+            </div>
+          )}
+
+          {visit.weather && (
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Weather</p>
+              <div className="flex items-center gap-1 text-sm text-gray-300">
+                <Cloud size={14} className="text-gray-500" />
+                {visit.weather}
+              </div>
             </div>
           )}
 
@@ -179,7 +214,7 @@ export default function ParkDetailPage() {
 
       {/* Check-In Modal */}
       {showCheckIn && (
-        <CheckInModal park={park} onClose={() => setShowCheckIn(false)} />
+        <CheckInModal park={park} visit={visit} onClose={() => setShowCheckIn(false)} />
       )}
     </div>
   );
