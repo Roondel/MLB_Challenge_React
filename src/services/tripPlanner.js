@@ -2,7 +2,7 @@ import { PARK_BY_ID } from '../data/parks';
 
 // Haversine distance in miles between two lat/lng points
 function haversine(lat1, lng1, lat2, lng2) {
-  const R = 3959; // Earth radius in miles
+  const R = 3959;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a =
@@ -21,7 +21,6 @@ export function suggestRoute(availableParkIds, startParkId) {
   let currentPark = PARK_BY_ID[startParkId];
 
   if (!currentPark) {
-    // If start park isn't in our data, use the first available park
     const firstId = availableParkIds[0];
     currentPark = PARK_BY_ID[firstId];
     remaining.delete(firstId);
@@ -65,57 +64,123 @@ export function suggestRoute(availableParkIds, startParkId) {
       const distance = prevPark
         ? Math.round(haversine(prevPark.lat, prevPark.lng, park.lat, park.lng))
         : 0;
-      return {
-        parkId,
-        parkName: park?.venueName,
-        teamName: park?.teamName,
-        city: park?.city,
-        state: park?.state,
-        distance,
-      };
+      return { parkId, parkName: park?.venueName, teamName: park?.teamName, city: park?.city, state: park?.state, distance };
     }),
   };
 }
 
-// Estimate driving time (rough: 60mph average)
+// Estimate driving time string (rough: 60mph average)
 export function estimateDriveTime(miles) {
-  const hours = Math.floor(miles / 60);
-  const minutes = Math.round((miles / 60 - hours) * 60);
+  const total = (miles * ROAD_FACTOR) / DRIVE_SPEED_MPH;
+  const hours = Math.floor(total);
+  const minutes = Math.round((total - hours) * 60);
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
 // --- Schedule-aware trip planner ---
 
-const GAME_DURATION_MS = 3.5 * 60 * 60 * 1000;  // 3.5 hours
-const BUFFER_BEFORE_MS = 1 * 60 * 60 * 1000;     // 1 hour pre-game buffer
-const DRIVE_SPEED_MPH = 60;
-const LONG_DRIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000; // 12 hours
+const GAME_DURATION_MS  = 3.5 * 60 * 60 * 1000;
+const BUFFER_BEFORE_MS  = 1   * 60 * 60 * 1000;
+const DRIVE_SPEED_MPH   = 60;
+// Roads are longer than straight-line distance. 1.3 approximates the
+// typical US road/haversine ratio — gets drive times close to mapping
+// apps without needing a routing API. For accurate times on specific
+// routes use Google Maps Distance Matrix.
+const ROAD_FACTOR       = 1.3;
 
-function driveTimeMs(miles) {
-  return (miles / DRIVE_SPEED_MPH) * 3600 * 1000;
-}
+// Human driving limits
+const MAX_DAILY_DRIVE_HOURS  = 8;   // max driving hours per day
+const DRIVING_START_HOUR     = 8;   // don't start before 8am
+const DRIVING_END_HOUR       = 20;  // stop driving by 8pm
+const OVERNIGHT_GAME_HOUR    = 19;  // games ending after 7pm → overnight rest before driving
 
 const SKIP_STATUSES = new Set(['Cancelled', 'Postponed', 'Suspended']);
 
+function driveHours(miles) {
+  return (miles * ROAD_FACTOR) / DRIVE_SPEED_MPH;
+}
+
 /**
- * Schedule-aware greedy route planner.
- * Picks specific games at each park, ensuring drive time + buffer
- * fits between consecutive games.
- *
- * @param {number[]} selectedParkIds
- * @param {number} startParkId - team ID of the starting city's park
- * @param {Object} gamesByPark - { [teamId]: gameObject[] }
- * @param {string} tripStartDate - "YYYY-MM-DD"
- * @returns {ScheduleRouteResult}
+ * Compute wall-clock arrival time accounting for:
+ * - Max MAX_DAILY_DRIVE_HOURS of driving per calendar day
+ * - No driving between DRIVING_END_HOUR and DRIVING_START_HOUR next day
  */
+export function effectiveArrivalTime(departureMs, miles) {
+  let timeMs = departureMs;
+  let hoursLeft = driveHours(miles);
+
+  while (hoursLeft > 0.01) {
+    const d = new Date(timeMs);
+    const currentHour = d.getHours() + d.getMinutes() / 60;
+
+    // Outside driving window — advance to next morning
+    if (currentHour >= DRIVING_END_HOUR || currentHour < DRIVING_START_HOUR) {
+      const next = new Date(timeMs);
+      if (currentHour >= DRIVING_END_HOUR) next.setDate(next.getDate() + 1);
+      next.setHours(DRIVING_START_HOUR, 0, 0, 0);
+      timeMs = next.getTime();
+      continue;
+    }
+
+    // Drive as much as possible today (capped by daily limit and end-of-day)
+    const hoursAvailableToday = Math.min(
+      DRIVING_END_HOUR - currentHour,
+      MAX_DAILY_DRIVE_HOURS
+    );
+    const driveNow = Math.min(hoursLeft, hoursAvailableToday);
+    timeMs += driveNow * 3600 * 1000;
+    hoursLeft -= driveNow;
+
+    // Still more to drive — rest overnight
+    if (hoursLeft > 0.01) {
+      const next = new Date(timeMs);
+      next.setDate(next.getDate() + 1);
+      next.setHours(DRIVING_START_HOUR, 0, 0, 0);
+      timeMs = next.getTime();
+    }
+  }
+
+  return timeMs;
+}
+
+/**
+ * Earliest departure time after a game ends.
+ * Evening games require overnight rest before driving.
+ */
+export function departureAfterGame(gameEndMs) {
+  const d = new Date(gameEndMs);
+  const hour = d.getHours() + d.getMinutes() / 60;
+
+  if (hour >= OVERNIGHT_GAME_HOUR) {
+    const next = new Date(gameEndMs);
+    next.setDate(next.getDate() + 1);
+    next.setHours(DRIVING_START_HOUR, 0, 0, 0);
+    return next.getTime();
+  }
+
+  return gameEndMs;
+}
+
+/**
+ * Count overnight stops required for a drive leg.
+ */
+export function overnightStopsForDrive(departureMs, miles) {
+  const arrivalMs = effectiveArrivalTime(departureMs, miles);
+  const depDate = new Date(departureMs);
+  const arrDate = new Date(arrivalMs);
+  depDate.setHours(0, 0, 0, 0);
+  arrDate.setHours(0, 0, 0, 0);
+  const calendarDays = Math.round((arrDate - depDate) / (24 * 60 * 60 * 1000));
+  return calendarDays;
+}
+
 export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, tripStartDate) {
   if (selectedParkIds.length === 0) {
     return { route: [], totalMiles: 0, itinerary: [], unreachableParks: [], warnings: [] };
   }
 
-  // Current position and time
   let currentPark = PARK_BY_ID[startParkId] || PARK_BY_ID[selectedParkIds[0]];
-  let currentTime = new Date(`${tripStartDate}T08:00:00`).getTime(); // 8am local
+  let currentTime = new Date(`${tripStartDate}T${DRIVING_START_HOUR.toString().padStart(2, '0')}:00:00`).getTime();
 
   const remaining = new Set(selectedParkIds);
   const itinerary = [];
@@ -123,7 +188,6 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
   const warnings = [];
   let totalMiles = 0;
 
-  // Pre-sort games for each park chronologically, filter bad statuses and TBD times
   const sortedGames = {};
   for (const parkId of selectedParkIds) {
     const games = gamesByPark[parkId] || [];
@@ -132,10 +196,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
       .sort((a, b) => new Date(a.gameTime) - new Date(b.gameTime));
   }
 
-  // If the starting city is one of the selected parks, always lock it in
-  // as stop #1. The user said they're starting here — don't send them
-  // elsewhere and back. Parks whose games fall before this first game
-  // are genuinely unreachable and will be flagged as such.
+  // Lock in starting park as first stop
   if (remaining.has(startParkId)) {
     const startGame = sortedGames[startParkId]?.find(g =>
       new Date(g.gameTime).getTime() >= currentTime + BUFFER_BEFORE_MS
@@ -165,47 +226,46 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
         driveFromPrev: null,
       });
 
-      currentTime = gameEndMs;
+      currentTime = departureAfterGame(gameEndMs);
     } else {
-      const park = PARK_BY_ID[startParkId];
       unreachableParks.push({
         parkId: startParkId,
-        parkName: park?.venueName || 'Unknown',
-        teamName: park?.teamName || 'Unknown',
+        parkName: PARK_BY_ID[startParkId]?.venueName || 'Unknown',
+        teamName: PARK_BY_ID[startParkId]?.teamName || 'Unknown',
         reason: 'No home games at starting city in your date range',
       });
     }
   }
 
-  // Greedy loop: pick the next park+game with least wait time
+  // Greedy loop: pick next park+game with earliest game start time.
+  // "Earliest game start" naturally favours nearby parks (you arrive sooner,
+  // unlocking earlier games) while still allowing a farther park to win if
+  // it has a significantly earlier game on the calendar.
   while (remaining.size > 0) {
-    let best = null; // { parkId, game, arrivalTime, waitTime, distance, dtMs }
+    let best = null;
 
     for (const parkId of remaining) {
       const targetPark = PARK_BY_ID[parkId];
       if (!targetPark) continue;
 
       const distance = haversine(currentPark.lat, currentPark.lng, targetPark.lat, targetPark.lng);
-      const dtMs = driveTimeMs(distance);
-      const arrivalTime = currentTime + dtMs;
+      const arrivalTime = effectiveArrivalTime(currentTime, distance);
       const earliestGameStart = arrivalTime + BUFFER_BEFORE_MS;
 
-      // Find earliest feasible game at this park
       const game = sortedGames[parkId].find(g =>
         new Date(g.gameTime).getTime() >= earliestGameStart
       );
 
-      if (!game) continue; // no reachable game
+      if (!game) continue;
 
-      const waitTime = new Date(game.gameTime).getTime() - earliestGameStart;
+      const gameStartMs = new Date(game.gameTime).getTime();
 
-      if (!best || waitTime < best.waitTime || (waitTime === best.waitTime && distance < best.distance)) {
-        best = { parkId, game, arrivalTime, waitTime, distance, dtMs };
+      if (!best || gameStartMs < best.gameStartMs || (gameStartMs === best.gameStartMs && distance < best.distance)) {
+        best = { parkId, game, arrivalTime, gameStartMs, distance };
       }
     }
 
     if (!best) {
-      // No remaining park has a reachable game
       for (const parkId of remaining) {
         const park = PARK_BY_ID[parkId];
         unreachableParks.push({
@@ -218,17 +278,17 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
       break;
     }
 
-    // Accept this candidate
     remaining.delete(best.parkId);
     totalMiles += best.distance;
 
-    const gameStartMs = new Date(best.game.gameTime).getTime();
-    const gameEndMs = gameStartMs + GAME_DURATION_MS;
+    const gameEndMs = best.gameStartMs + GAME_DURATION_MS;
 
-    // Warn about long drives
-    if (best.dtMs > LONG_DRIVE_THRESHOLD_MS) {
+    const stops = overnightStopsForDrive(currentTime, best.distance);
+    if (stops > 0) {
       const park = PARK_BY_ID[best.parkId];
-      warnings.push(`Long drive to ${park.city}: ~${estimateDriveTime(best.distance)}`);
+      warnings.push(
+        `Drive to ${park.city} requires ${stops} overnight stop${stops > 1 ? 's' : ''} (~${estimateDriveTime(best.distance)} of driving)`
+      );
     }
 
     itinerary.push({
@@ -249,16 +309,15 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
       driveFromPrev: itinerary.length === 0 ? null : {
         miles: Math.round(best.distance),
         driveTime: estimateDriveTime(best.distance),
-        driveTimeMs: best.dtMs,
+        driveTimeMs: driveHours(best.distance) * 3600 * 1000,
+        overnightStops: stops,
       },
     });
 
-    // Depart after the game ends
-    currentTime = gameEndMs;
+    currentTime = departureAfterGame(gameEndMs);
     currentPark = PARK_BY_ID[best.parkId];
   }
 
-  // Check for same-day games (tight schedule)
   const gameDates = itinerary.map(s => s.game.date);
   const uniqueDates = new Set(gameDates);
   if (uniqueDates.size < gameDates.length) {

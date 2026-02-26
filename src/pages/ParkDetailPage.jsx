@@ -7,6 +7,7 @@ import { useToast } from '../components/layout/Toast';
 import { useGeoProximity } from '../hooks/useGeoProximity';
 import CheckInModal from '../components/parks/CheckInModal';
 import StarRating from '../components/parks/StarRating';
+import { showParkNotification, registerServiceWorker } from '../services/notifications';
 
 export default function ParkDetailPage() {
   const { parkId } = useParams();
@@ -70,6 +71,19 @@ export default function ParkDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Dev-only: test notification button */}
+      {import.meta.env.DEV && (
+        <button
+          onClick={async () => {
+            const reg = await registerServiceWorker();
+            showParkNotification(park, reg);
+          }}
+          className="w-full px-4 py-2 bg-dark-700 border border-dark-500 hover:border-accent text-gray-400 hover:text-white text-sm rounded-lg transition-colors"
+        >
+          [Dev] Fire Test Notification
+        </button>
+      )}
 
       {/* GPS proximity banner */}
       {nearby && (

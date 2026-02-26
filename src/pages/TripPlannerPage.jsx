@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { Trash2, FolderOpen } from 'lucide-react';
 import { PARKS, PARK_BY_ID } from '../data/parks';
 import { fetchHomeGamesByPark } from '../services/mlbApi';
 import { suggestScheduleRoute } from '../services/tripPlanner';
 import { useVisits } from '../hooks/useVisits';
+import { useApp } from '../context/AppContext';
 import { useToast } from '../components/layout/Toast';
 import TripForm from '../components/trip/TripForm';
 import AvailableGames from '../components/trip/AvailableGames';
@@ -10,6 +12,7 @@ import RoutePreview from '../components/trip/RoutePreview';
 
 export default function TripPlannerPage() {
   const { visitedParks } = useVisits();
+  const { state, dispatch } = useApp();
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,6 +20,8 @@ export default function TripPlannerPage() {
   const [selectedParks, setSelectedParks] = useState([]);
   const [routeResult, setRouteResult] = useState(null);
   const [searchParams, setSearchParams] = useState(null);
+  const [tripName, setTripName] = useState('');
+  const [showSaveInput, setShowSaveInput] = useState(false);
 
   const handleSearch = async ({ startDate, endDate, startCity }) => {
     setLoading(true);
@@ -24,20 +29,17 @@ export default function TripPlannerPage() {
     setGamesByPark(null);
     setSelectedParks([]);
     setRouteResult(null);
+    setShowSaveInput(false);
     setSearchParams({ startDate, endDate, startCity });
 
     try {
       const results = await fetchHomeGamesByPark(startDate, endDate);
-
-      // Filter out already-visited parks (optional — user can re-enable)
       const filtered = {};
       Object.entries(results).forEach(([parkId, games]) => {
         filtered[Number(parkId)] = games;
       });
-
       setGamesByPark(filtered);
-      const parkCount = Object.keys(filtered).length;
-      addToast(`Found ${parkCount} parks with home games`, 'success');
+      addToast(`Found ${Object.keys(filtered).length} parks with home games`, 'success');
     } catch (err) {
       setError(err.message || 'Failed to fetch schedule. Please try again.');
       addToast('Failed to fetch schedule', 'error');
@@ -52,7 +54,6 @@ export default function TripPlannerPage() {
         ? prev.filter(id => id !== parkId)
         : [...prev, parkId];
 
-      // Auto-generate route when parks change
       if (next.length > 0) {
         const startPark = searchParams?.startCity
           ? PARKS.find(p => `${p.city}, ${p.state}` === searchParams.startCity)
@@ -68,8 +69,42 @@ export default function TripPlannerPage() {
         setRouteResult(null);
       }
 
+      setShowSaveInput(false);
       return next;
     });
+  };
+
+  const handleSaveTrip = () => {
+    const name = tripName.trim() || `Trip ${new Date().toLocaleDateString()}`;
+    dispatch({
+      type: 'SAVE_TRIP',
+      payload: {
+        tripId: Date.now(),
+        name,
+        savedAt: new Date().toISOString(),
+        startDate: searchParams.startDate,
+        endDate: searchParams.endDate,
+        startCity: searchParams.startCity,
+        selectedParks,
+        routeResult,
+      },
+    });
+    setTripName('');
+    setShowSaveInput(false);
+    addToast(`"${name}" saved`, 'success');
+  };
+
+  const handleLoadTrip = (trip) => {
+    setSearchParams({ startDate: trip.startDate, endDate: trip.endDate, startCity: trip.startCity });
+    setSelectedParks(trip.selectedParks);
+    setRouteResult(trip.routeResult);
+    setGamesByPark(null);
+    addToast(`Loaded "${trip.name}"`, 'success');
+  };
+
+  const handleDeleteTrip = (tripId) => {
+    dispatch({ type: 'DELETE_TRIP', payload: tripId });
+    addToast('Trip deleted', 'success');
   };
 
   return (
@@ -98,6 +133,44 @@ export default function TripPlannerPage() {
         </div>
       )}
 
+      {/* Save trip */}
+      {routeResult && (
+        <div className="bg-dark-800 rounded-xl border border-dark-600 p-4">
+          {!showSaveInput ? (
+            <button
+              onClick={() => setShowSaveInput(true)}
+              className="w-full py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Save This Trip
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Trip name (optional)"
+                value={tripName}
+                onChange={(e) => setTripName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveTrip()}
+                className="flex-1 bg-dark-700 border border-dark-500 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-accent"
+              />
+              <button
+                onClick={handleSaveTrip}
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => { setShowSaveInput(false); setTripName(''); }}
+                className="px-3 py-2 text-gray-400 hover:text-white text-sm rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {loading && (
         <div className="bg-dark-800 rounded-xl border border-dark-600 p-12 flex flex-col items-center gap-3">
           <div className="animate-spin w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
@@ -105,7 +178,7 @@ export default function TripPlannerPage() {
         </div>
       )}
 
-      {!gamesByPark && !loading && (
+      {!gamesByPark && !loading && !routeResult && (
         <div className="bg-dark-800 rounded-xl border border-dark-600 p-10 flex flex-col items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-dark-700 flex items-center justify-center">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600">
@@ -120,6 +193,36 @@ export default function TripPlannerPage() {
                 : 'Enter your travel dates to find home games across all 30 ballparks'}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Saved trips */}
+      {state.tripPlans.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Saved Trips</h3>
+          {state.tripPlans.map(trip => (
+            <div key={trip.tripId} className="bg-dark-800 border border-dark-600 rounded-xl px-4 py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{trip.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {trip.startDate} → {trip.endDate} · {trip.selectedParks.length} park{trip.selectedParks.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => handleLoadTrip(trip)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-dark-700 hover:bg-dark-600 rounded-lg transition-colors"
+              >
+                <FolderOpen size={13} />
+                Load
+              </button>
+              <button
+                onClick={() => handleDeleteTrip(trip.tripId)}
+                className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
