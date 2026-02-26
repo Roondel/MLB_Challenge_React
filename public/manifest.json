@@ -1,0 +1,17 @@
+{
+  "name": "30 Ballpark Challenge",
+  "short_name": "Ballpark",
+  "description": "Track your visits to all 30 MLB ballparks.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#c8102e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

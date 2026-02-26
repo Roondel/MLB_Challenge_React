@@ -91,6 +91,11 @@ export default function RoutePreview({ routeResult }) {
               {stop.driveFromPrev && (
                 <p className="text-xs text-gray-600 mt-0.5">
                   {stop.driveFromPrev.miles} mi · ~{stop.driveFromPrev.driveTime} drive
+                  {stop.driveFromPrev.overnightStops > 0 && (
+                    <span className="ml-1 text-yellow-500">
+                      · {stop.driveFromPrev.overnightStops} overnight stop{stop.driveFromPrev.overnightStops > 1 ? 's' : ''}
+                    </span>
+                  )}
                 </p>
               )}
             </div>

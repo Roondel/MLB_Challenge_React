@@ -1,30 +1,90 @@
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Loader2, Zap } from 'lucide-react';
 import StarRating from './StarRating';
 import PhotoUploader from './PhotoUploader';
 import { useVisits } from '../../hooks/useVisits';
 import { useToast } from '../layout/Toast';
+import { fetchGameForParkOnDate, fetchWeatherForPark } from '../../services/mlbApi';
+import { PARKS } from '../../data/parks';
 
-export default function CheckInModal({ park, onClose }) {
-  const { addVisit } = useVisits();
+export default function CheckInModal({ park, visit, onClose }) {
+  const { addVisit, updateVisit } = useVisits();
   const { addToast } = useToast();
+  const isEditing = !!visit;
+  const hasMounted = useRef(false);
+
   const [form, setForm] = useState({
-    visitDate: new Date().toISOString().split('T')[0],
-    baseballPhotoBase64: null,
-    personalNote: '',
-    rating: 0,
-    gameAttended: false,
-    opponent: '',
-    gameScore: '',
+    visitDate: visit?.visitDate ?? new Date().toISOString().split('T')[0],
+    baseballPhotoBase64: visit?.baseballPhotoBase64 ?? null,
+    personalNote: visit?.personalNote ?? '',
+    rating: visit?.rating ?? 0,
+    gameAttended: visit?.gameAttended ?? false,
+    opponent: visit?.opponent ?? '',
+    gameScore: visit?.gameScore ?? '',
+    weather: visit?.weather ?? '',
   });
+  const [gameLoading, setGameLoading] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
+
+  useEffect(() => {
+    // When editing, skip auto-fetch on mount — only fetch if user changes the date
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      if (isEditing) return;
+    }
+
+    let cancelled = false;
+
+    async function fetchData() {
+      setGameLoading(true);
+      setAutoFilled(false);
+
+      try {
+        const [game, weather] = await Promise.all([
+          fetchGameForParkOnDate(park.teamId, form.visitDate),
+          fetchWeatherForPark(park.lat, park.lng, form.visitDate),
+        ]);
+
+        if (cancelled) return;
+
+        const awayPark = game ? PARKS.find(p => p.teamId === game.awayTeamId) : null;
+        const awayAbbr = awayPark?.abbreviation || game?.awayTeamName;
+
+        const updates = {
+          weather: weather ? `${weather.tempF}°F, ${weather.condition}` : '',
+          gameAttended: !!game,
+          opponent: game ? game.awayTeamName : '',
+          gameScore: (game?.status === 'Final' && game.homeScore != null && game.awayScore != null)
+            ? `${park.abbreviation} ${game.homeScore} - ${awayAbbr} ${game.awayScore}`
+            : '',
+        };
+
+        setAutoFilled(!!game);
+        setForm(prev => ({ ...prev, ...updates }));
+      } catch {
+        // API failed — clear auto-fill fields so stale data doesn't persist
+        if (!cancelled) {
+          setForm(prev => ({ ...prev, weather: '', opponent: '', gameScore: '' }));
+          setAutoFilled(false);
+        }
+      } finally {
+        if (!cancelled) setGameLoading(false);
+      }
+    }
+
+    fetchData();
+    return () => { cancelled = true; };
+  }, [form.visitDate, park.teamId, park.lat, park.lng]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    addVisit({
-      parkId: park.teamId,
-      ...form,
-    });
-    addToast(`Checked in at ${park.venueName}!`, 'success');
+    if (isEditing) {
+      updateVisit(visit.visitId, form);
+      addToast(`Updated visit to ${park.venueName}`, 'success');
+    } else {
+      addVisit({ parkId: park.teamId, ...form });
+      addToast(`Checked in at ${park.venueName}!`, 'success');
+    }
     onClose();
   };
 
@@ -72,6 +132,19 @@ export default function CheckInModal({ park, onClose }) {
             />
           </div>
 
+          {/* Weather */}
+          {form.weather && (
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Weather</label>
+              <input
+                type="text"
+                value={form.weather}
+                onChange={(e) => setForm({ ...form, weather: e.target.value })}
+                className="w-full bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+              />
+            </div>
+          )}
+
           {/* Notes */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">Personal Notes</label>
@@ -94,6 +167,12 @@ export default function CheckInModal({ park, onClose }) {
                 className="accent-accent w-4 h-4"
               />
               <span className="text-sm">I attended a game</span>
+              {gameLoading && <Loader2 size={14} className="animate-spin text-gray-500 ml-1" />}
+              {autoFilled && !gameLoading && (
+                <span className="flex items-center gap-1 text-xs text-accent ml-1">
+                  <Zap size={12} /> Auto-filled from MLB
+                </span>
+              )}
             </label>
           </div>
 
@@ -127,7 +206,7 @@ export default function CheckInModal({ park, onClose }) {
             type="submit"
             className="w-full bg-accent hover:bg-accent-hover text-white font-medium py-3 rounded-lg transition-colors"
           >
-            Check In
+            {isEditing ? 'Save Changes' : 'Check In'}
           </button>
         </form>
       </div>
