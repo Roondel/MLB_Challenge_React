@@ -3,7 +3,7 @@ import { useVisits } from '../../hooks/useVisits';
 import { useApp } from '../../context/AppContext';
 
 export default function StatsCards() {
-  const { visitedCount, uniqueStates, averageRating, visits } = useVisits();
+  const { visitedCount, uniqueStates, visits } = useVisits();
   const { state } = useApp();
 
   const lastVisit = visits.length > 0

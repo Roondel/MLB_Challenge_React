@@ -12,62 +12,6 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Nearest-neighbor heuristic for route optimization
-export function suggestRoute(availableParkIds, startParkId) {
-  if (availableParkIds.length === 0) return { route: [], totalMiles: 0 };
-
-  const route = [];
-  const remaining = new Set(availableParkIds);
-  let currentPark = PARK_BY_ID[startParkId];
-
-  if (!currentPark) {
-    const firstId = availableParkIds[0];
-    currentPark = PARK_BY_ID[firstId];
-    remaining.delete(firstId);
-    route.push(firstId);
-  }
-
-  let totalMiles = 0;
-
-  while (remaining.size > 0) {
-    let nearest = null;
-    let nearestDist = Infinity;
-
-    for (const parkId of remaining) {
-      const park = PARK_BY_ID[parkId];
-      if (!park) continue;
-      const dist = haversine(currentPark.lat, currentPark.lng, park.lat, park.lng);
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearest = parkId;
-      }
-    }
-
-    if (nearest) {
-      route.push(nearest);
-      remaining.delete(nearest);
-      totalMiles += nearestDist;
-      currentPark = PARK_BY_ID[nearest];
-    } else {
-      break;
-    }
-  }
-
-  return {
-    route,
-    totalMiles: Math.round(totalMiles),
-    legs: route.map((parkId, i) => {
-      const park = PARK_BY_ID[parkId];
-      const prevPark = i === 0
-        ? PARK_BY_ID[startParkId] || PARK_BY_ID[route[0]]
-        : PARK_BY_ID[route[i - 1]];
-      const distance = prevPark
-        ? Math.round(haversine(prevPark.lat, prevPark.lng, park.lat, park.lng))
-        : 0;
-      return { parkId, parkName: park?.venueName, teamName: park?.teamName, city: park?.city, state: park?.state, distance };
-    }),
-  };
-}
 
 // Estimate driving time string (rough: 60mph average)
 export function estimateDriveTime(miles) {
@@ -229,7 +173,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
         driveFromPrev: null,
       });
 
-      currentTime = gameEndMs;
+      currentTime = departureAfterGame(gameEndMs);
     } else {
       const park = PARK_BY_ID[startParkId];
       unreachableParks.push({
@@ -241,7 +185,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
     }
   }
 
-  // Greedy loop: pick the next park+game with least wait time
+  // Greedy loop: pick the next park+game with earliest game start time
   while (remaining.size > 0) {
     let best = null;
 

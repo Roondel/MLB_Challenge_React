@@ -392,5 +392,3 @@ export const PARKS = [
 ];
 
 export const PARK_BY_ID = Object.fromEntries(PARKS.map(p => [p.teamId, p]));
-
-export const DIVISIONS = [...new Set(PARKS.map(p => p.division))].sort();

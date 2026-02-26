@@ -1,6 +1,6 @@
 const BASE_URL = 'https://statsapi.mlb.com/api/v1';
 
-export async function fetchSchedule(startDate, endDate) {
+async function fetchSchedule(startDate, endDate) {
   const url = `${BASE_URL}/schedule?sportId=1&startDate=${startDate}&endDate=${endDate}&gameType=R`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`MLB API error: ${res.status}`);
