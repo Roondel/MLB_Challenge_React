@@ -8,6 +8,7 @@
     "test:watch": "vitest",
     "dev": "vite",
     "build": "vite build",
+    "build:dev": "vite build --mode dev",
     "preview": "vite preview"
   },
   "dependencies": {

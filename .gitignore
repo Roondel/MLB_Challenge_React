@@ -4,5 +4,7 @@ CLAUDE.md
 node_modules/
 .env
 .env.local
+.env.dev
+.env.production
 .DS_Store
 *.log

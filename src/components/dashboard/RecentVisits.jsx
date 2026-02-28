@@ -2,6 +2,52 @@ import { Link } from 'react-router-dom';
 import { ChevronRight, MapPin } from 'lucide-react';
 import { useVisits } from '../../hooks/useVisits';
 import { useApp } from '../../context/AppContext';
+import { usePhotoUrl } from '../../hooks/usePhotoUrl';
+
+// Extracted so usePhotoUrl can be called per row (hooks can't be used inside .map())
+function RecentVisitRow({ visit, park }) {
+  const rawKey = visit?.photoKeys?.[0];
+  const isBase64 = rawKey?.startsWith('data:image/');
+  const resolvedS3Url = usePhotoUrl(!isBase64 ? rawKey : null);
+
+  const photoSrc = resolvedS3Url
+    ?? (isBase64 ? rawKey : null)
+    ?? visit?.baseballPhotoBase64
+    ?? null;
+
+  return (
+    <Link
+      to={`/parks/${visit.parkId}`}
+      className="flex items-center gap-4 p-3 rounded-lg hover:bg-dark-700 transition-colors group"
+    >
+      {photoSrc ? (
+        <img
+          src={photoSrc}
+          alt="Baseball"
+          className="w-12 h-12 rounded-lg object-cover"
+        />
+      ) : (
+        <div className="w-12 h-12 rounded-lg bg-dark-700 flex items-center justify-center">
+          <img
+            src={`https://www.mlbstatic.com/team-logos/${visit.parkId}.svg`}
+            alt={park?.abbreviation}
+            className="w-8 h-8"
+          />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{park?.venueName}</p>
+        <p className="text-xs text-gray-500">{park?.teamName} &middot; {new Date(visit.visitDate).toLocaleDateString()}</p>
+      </div>
+      <div className="flex items-center gap-1">
+        {visit.rating > 0 && (
+          <span className="text-accent text-sm">{'★'.repeat(visit.rating)}</span>
+        )}
+        <ChevronRight size={16} className="text-gray-600 group-hover:text-gray-400" />
+      </div>
+    </Link>
+  );
+}
 
 export default function RecentVisits() {
   const { visits } = useVisits();
@@ -35,39 +81,7 @@ export default function RecentVisits() {
       <div className="space-y-3">
         {recent.map(visit => {
           const park = state.parks.find(p => p.teamId === visit.parkId);
-          return (
-            <Link
-              key={visit.visitId}
-              to={`/parks/${visit.parkId}`}
-              className="flex items-center gap-4 p-3 rounded-lg hover:bg-dark-700 transition-colors group"
-            >
-              {visit.baseballPhotoBase64 ? (
-                <img
-                  src={visit.baseballPhotoBase64}
-                  alt="Baseball"
-                  className="w-12 h-12 rounded-lg object-cover"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-lg bg-dark-700 flex items-center justify-center">
-                  <img
-                    src={`https://www.mlbstatic.com/team-logos/${visit.parkId}.svg`}
-                    alt={park?.abbreviation}
-                    className="w-8 h-8"
-                  />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{park?.venueName}</p>
-                <p className="text-xs text-gray-500">{park?.teamName} &middot; {new Date(visit.visitDate).toLocaleDateString()}</p>
-              </div>
-              <div className="flex items-center gap-1">
-                {visit.rating > 0 && (
-                  <span className="text-accent text-sm">{'★'.repeat(visit.rating)}</span>
-                )}
-                <ChevronRight size={16} className="text-gray-600 group-hover:text-gray-400" />
-              </div>
-            </Link>
-          );
+          return <RecentVisitRow key={visit.visitId} visit={visit} park={park} />;
         })}
       </div>
     </div>

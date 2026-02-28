@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { useVisits } from '../hooks/useVisits';
 import { useToast } from '../components/layout/Toast';
 import { useGeoProximity } from '../hooks/useGeoProximity';
+import { usePhotoUrl } from '../hooks/usePhotoUrl';
 import CheckInModal from '../components/parks/CheckInModal';
 import StarRating from '../components/parks/StarRating';
 import { showParkNotification, registerServiceWorker } from '../services/notifications';
@@ -21,6 +22,15 @@ export default function ParkDetailPage() {
   const visit = getVisitByParkId(Number(parkId));
   const visited = isVisited(Number(parkId));
   const { nearby } = useGeoProximity(park?.lat, park?.lng);
+
+  // Resolve photo for display — handles S3 keys, legacy base64, and old field name
+  const visitPhotoKey = visit?.photoKeys?.[0];
+  const isBase64Key = visitPhotoKey?.startsWith('data:image/');
+  const resolvedPhotoUrl = usePhotoUrl(!isBase64Key ? visitPhotoKey : null);
+  const photoSrc = resolvedPhotoUrl
+    ?? (isBase64Key ? visitPhotoKey : null)
+    ?? visit?.baseballPhotoBase64
+    ?? null;
 
   if (!park) {
     return (
@@ -131,11 +141,11 @@ export default function ParkDetailPage() {
             )}
           </div>
 
-          {visit.baseballPhotoBase64 && (
+          {photoSrc && (
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Baseball Collection</p>
               <img
-                src={visit.baseballPhotoBase64}
+                src={photoSrc}
                 alt="Baseball from visit"
                 className="w-full max-w-md rounded-xl"
               />

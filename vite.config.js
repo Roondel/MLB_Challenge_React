@@ -12,6 +12,17 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react':  ['react', 'react-dom', 'react-router-dom'],
+          'vendor-map':    ['leaflet', 'react-leaflet'],
+          'vendor-charts': ['recharts'],
+        },
+      },
+    },
+  },
   server: {
     host: '127.0.0.1',
     proxy: {

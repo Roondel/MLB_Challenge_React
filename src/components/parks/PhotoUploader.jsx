@@ -1,10 +1,28 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Camera, X } from 'lucide-react';
-import { compressImage } from '../../services/imageUtils';
+import { compressToBlob } from '../../services/imageUtils';
+import { usePhotoUrl } from '../../hooks/usePhotoUrl';
 
-export default function PhotoUploader({ value, onChange }) {
+// currentKey — existing S3 key (e.g. "photos/109/photo.jpg"), legacy base64, or null
+// onChange   — called with a Blob when user picks a file, or null when they clear it
+export default function PhotoUploader({ currentKey, onChange }) {
   const inputRef = useRef(null);
   const [loading, setLoading] = useState(false);
+  const [previewObjectUrl, setPreviewObjectUrl] = useState(null);
+
+  // Resolve S3 key to pre-signed URL (hook returns null for base64/null inputs)
+  const isBase64 = currentKey?.startsWith('data:image/');
+  const resolvedS3Url = usePhotoUrl(!isBase64 ? currentKey : null);
+
+  // Priority: newly picked file preview > legacy base64 > resolved S3 URL
+  const previewSrc = previewObjectUrl ?? (isBase64 ? currentKey : null) ?? resolvedS3Url;
+
+  // Revoke object URL on unmount to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    };
+  }, [previewObjectUrl]);
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -12,26 +30,38 @@ export default function PhotoUploader({ value, onChange }) {
 
     setLoading(true);
     try {
-      const compressed = await compressImage(file);
-      onChange(compressed);
+      const blob = await compressToBlob(file);
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      setPreviewObjectUrl(URL.createObjectURL(blob));
+      onChange(blob);
     } catch {
       alert('Failed to process image. Please try another file.');
     } finally {
       setLoading(false);
+      // Reset input so the same file can be re-selected if needed
+      if (inputRef.current) inputRef.current.value = '';
     }
   };
 
-  if (value) {
+  const handleClear = () => {
+    if (previewObjectUrl) {
+      URL.revokeObjectURL(previewObjectUrl);
+      setPreviewObjectUrl(null);
+    }
+    onChange(null);
+  };
+
+  if (previewSrc) {
     return (
       <div className="relative group">
         <img
-          src={value}
+          src={previewSrc}
           alt="Baseball"
           className="w-full h-48 object-cover rounded-lg"
         />
         <button
           type="button"
-          onClick={() => onChange(null)}
+          onClick={handleClear}
           className="absolute top-2 right-2 p-1 bg-dark-900/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
         >
           <X size={16} />
