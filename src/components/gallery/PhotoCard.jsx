@@ -1,17 +1,27 @@
 import { Link } from 'react-router-dom';
 import { Camera } from 'lucide-react';
+import { usePhotoUrl } from '../../hooks/usePhotoUrl';
 
 export default function PhotoCard({ park, visit }) {
-  const hasPhoto = visit?.baseballPhotoBase64;
+  // photoKeys[0] may be an S3 key or a legacy base64 string
+  const rawKey = visit?.photoKeys?.[0];
+  const isBase64 = rawKey?.startsWith('data:image/');
+  const resolvedS3Url = usePhotoUrl(!isBase64 ? rawKey : null);
+
+  // Fallback chain: resolved S3 URL → legacy base64 key → old baseballPhotoBase64 field
+  const photoSrc = resolvedS3Url
+    ?? (isBase64 ? rawKey : null)
+    ?? visit?.baseballPhotoBase64
+    ?? null;
 
   return (
     <Link
       to={`/parks/${park.teamId}`}
       className="group relative aspect-square rounded-xl overflow-hidden border border-dark-600 hover:border-dark-500 transition-colors"
     >
-      {hasPhoto ? (
+      {photoSrc ? (
         <img
-          src={visit.baseballPhotoBase64}
+          src={photoSrc}
           alt={`Baseball from ${park.venueName}`}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />

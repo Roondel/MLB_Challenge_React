@@ -1,9 +1,9 @@
-import { MapPin, Star, Calendar, Flag } from 'lucide-react';
+import { MapPin, Star, Calendar } from 'lucide-react';
 import { useVisits } from '../../hooks/useVisits';
 import { useApp } from '../../context/AppContext';
 
 export default function StatsCards() {
-  const { visitedCount, uniqueStates, visits } = useVisits();
+  const { visitedCount, visits } = useVisits();
   const { state } = useApp();
 
   const lastVisit = visits.length > 0
@@ -26,12 +26,6 @@ export default function StatsCards() {
       sub: `${30 - visitedCount} remaining`,
     },
     {
-      icon: Flag,
-      label: 'States Covered',
-      value: uniqueStates.length,
-      sub: `of 50 states + DC`,
-    },
-    {
       icon: Star,
       label: 'Avg Rating',
       value: displayRating || '—',
@@ -48,7 +42,7 @@ export default function StatsCards() {
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
       {stats.map(({ icon: Icon, label, value, sub }) => (
         <div key={label} className="bg-dark-800 rounded-xl p-4 border border-dark-600">
           <div className="flex items-center gap-2 mb-2">

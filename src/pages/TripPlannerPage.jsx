@@ -6,6 +6,11 @@ import { suggestScheduleRoute } from '../services/tripPlanner';
 import { useVisits } from '../hooks/useVisits';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../components/layout/Toast';
+import {
+  API_AVAILABLE,
+  saveTrip as apiSaveTrip,
+  deleteTrip as apiDeleteTrip,
+} from '../services/api';
 import TripForm from '../components/trip/TripForm';
 import AvailableGames from '../components/trip/AvailableGames';
 import RoutePreview from '../components/trip/RoutePreview';
@@ -74,24 +79,29 @@ export default function TripPlannerPage() {
     });
   };
 
-  const handleSaveTrip = () => {
+  const handleSaveTrip = async () => {
     const name = tripName.trim() || `Trip ${new Date().toLocaleDateString()}`;
-    dispatch({
-      type: 'SAVE_TRIP',
-      payload: {
-        tripId: Date.now(),
-        name,
-        savedAt: new Date().toISOString(),
-        startDate: searchParams.startDate,
-        endDate: searchParams.endDate,
-        startCity: searchParams.startCity,
-        selectedParks,
-        routeResult,
-      },
-    });
+    const tripPayload = {
+      tripId:   Date.now().toString(),
+      name,
+      savedAt:  new Date().toISOString(),
+      startDate: searchParams.startDate,
+      endDate:   searchParams.endDate,
+      startCity: searchParams.startCity,
+      selectedParks,
+      routeResult,
+    };
+    dispatch({ type: 'SAVE_TRIP', payload: tripPayload });
     setTripName('');
     setShowSaveInput(false);
     addToast(`"${name}" saved`, 'success');
+    if (API_AVAILABLE) {
+      try {
+        await apiSaveTrip(tripPayload);
+      } catch (err) {
+        console.error('Failed to save trip to API:', err);
+      }
+    }
   };
 
   const handleLoadTrip = (trip) => {
@@ -102,9 +112,16 @@ export default function TripPlannerPage() {
     addToast(`Loaded "${trip.name}"`, 'success');
   };
 
-  const handleDeleteTrip = (tripId) => {
+  const handleDeleteTrip = async (tripId) => {
     dispatch({ type: 'DELETE_TRIP', payload: tripId });
     addToast('Trip deleted', 'success');
+    if (API_AVAILABLE) {
+      try {
+        await apiDeleteTrip(tripId);
+      } catch (err) {
+        console.error('Failed to delete trip from API:', err);
+      }
+    }
   };
 
   return (
