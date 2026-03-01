@@ -253,6 +253,7 @@ export default function CheckInModal({ park, visit, onClose }) {
 
           {/* Submit */}
           <button
+            data-testid="checkin-submit"
             type="submit"
             disabled={submitting}
             className="w-full bg-accent hover:bg-accent-hover text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-60"
