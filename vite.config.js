@@ -20,6 +20,7 @@ export default defineConfig({
           'vendor-react':  ['react', 'react-dom', 'react-router-dom'],
           'vendor-map':    ['leaflet', 'react-leaflet'],
           'vendor-charts': ['recharts'],
+          'vendor-auth':   ['aws-amplify'],
         },
       },
     },

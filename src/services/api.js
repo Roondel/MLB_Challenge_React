@@ -1,3 +1,5 @@
+import { COGNITO_CONFIGURED, getIdToken } from './auth.js';
+
 const VISITS_API = import.meta.env.VITE_VISITS_API;
 const TRIPS_API  = import.meta.env.VITE_TRIPS_API;
 const PHOTOS_API = import.meta.env.VITE_PHOTOS_API;
@@ -6,16 +8,37 @@ const PHOTOS_API = import.meta.env.VITE_PHOTOS_API;
 // When false the app runs in localStorage-only mode — no API calls are made.
 export const API_AVAILABLE = !!(VISITS_API && TRIPS_API && PHOTOS_API);
 
+// Sentinel thrown by apiFetch when the server returns 401.
+// Callers can catch this to trigger a re-auth flow.
+export const AUTH_EXPIRED = Symbol('AUTH_EXPIRED');
+
 // ── Shared fetch helper ──────────────────────────────────────────────────────
 
 async function apiFetch(url, options = {}) {
+  // Inject Cognito ID token when available
+  let authHeader = {};
+  if (COGNITO_CONFIGURED) {
+    try {
+      const token = await getIdToken();
+      authHeader = { Authorization: `Bearer ${token}` };
+    } catch {
+      // No active session — let the request proceed; Lambda will return 401
+    }
+  }
+
   const res = await fetch(url, {
     ...options,
     headers: {
       ...(options.body != null ? { 'Content-Type': 'application/json' } : {}),
+      ...authHeader,
       ...options.headers,
     },
   });
+
+  if (res.status === 401) {
+    throw AUTH_EXPIRED;
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`API ${res.status}: ${text}`);
@@ -35,11 +58,12 @@ function visitToBackend(visit) {
     photoKeys:    visit.photoKeys ?? [],
     opponent:     visit.opponent,
     score:        visit.gameScore,
+    visited:      true,
     // Pass-through fields — DynamoDB stores any attribute, these round-trip cleanly
     gameAttended: visit.gameAttended,
     weather:      visit.weather,
     visitId:      visit.visitId,
-    createdAt:    visit.createdAt,
+    // createdAt intentionally omitted — Lambda owns it via if_not_exists semantics
   };
 }
 
@@ -95,7 +119,6 @@ export async function saveTrip(trip) {
       startDate: trip.startDate,
       endDate:   trip.endDate,
       startCity: trip.startCity,
-      createdAt: trip.savedAt,
     }),
   });
 }
@@ -107,7 +130,7 @@ export async function deleteTrip(tripId) {
 // ── Photos API ───────────────────────────────────────────────────────────────
 
 // Step 1: Request a pre-signed PUT URL from the Lambda.
-// Returns { uploadUrl, key } where key is always photos/{parkId}/photo.jpg
+// Returns { uploadUrl, key } where key is photos/{userId}/{parkId}/photo.jpg
 export async function requestUploadUrl(parkId, filename, contentType) {
   return apiFetch(PHOTOS_API, {
     method: 'POST',

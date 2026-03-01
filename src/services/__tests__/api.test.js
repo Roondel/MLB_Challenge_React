@@ -1,5 +1,11 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 
+// Mock the auth service so api.js can import it without Amplify configuration
+vi.mock('../auth.js', () => ({
+  COGNITO_CONFIGURED: true,
+  getIdToken: vi.fn().mockResolvedValue('mock-jwt-token'),
+}));
+
 const VISITS_URL = 'https://visits.test.com/';
 const TRIPS_URL  = 'https://trips.test.com/';
 const PHOTOS_URL = 'https://photos.test.com/';
@@ -193,7 +199,6 @@ describe('api module', () => {
       const body = JSON.parse(global.fetch.mock.calls[0][1].body);
       expect(body.parks).toEqual([109, 119]);
       expect(body.itinerary).toEqual([]);
-      expect(body.createdAt).toBe('2025-01-01T00:00:00Z');
     });
   });
 
@@ -268,6 +273,62 @@ describe('api module', () => {
         `${PHOTOS_URL}?key=photos%2F109%2Fphoto.jpg`,
         expect.objectContaining({ method: 'DELETE' }),
       );
+    });
+  });
+
+  // ── Authorization header ─────────────────────────────────────────────────────
+
+  describe('Authorization header', () => {
+    it('sends Bearer token on every API request', async () => {
+      mockFetch([]);
+      await api.fetchAllVisits();
+      const [, opts] = global.fetch.mock.calls[0];
+      expect(opts.headers['Authorization']).toBe('Bearer mock-jwt-token');
+    });
+
+    it('includes Authorization header on POST requests', async () => {
+      mockFetch({ parkId: 109, date: '2025-07-04', visitId: 'abc' });
+      await api.saveVisit({ parkId: 109, visitId: 'abc', visitDate: '2025-07-04', personalNote: '', rating: 0, gameScore: '', photoKeys: [] });
+      const [, opts] = global.fetch.mock.calls[0];
+      expect(opts.headers['Authorization']).toBe('Bearer mock-jwt-token');
+    });
+  });
+
+  // ── AUTH_EXPIRED ─────────────────────────────────────────────────────────────
+
+  describe('AUTH_EXPIRED', () => {
+    it('throws AUTH_EXPIRED symbol (not an Error) when server returns 401', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok:     false,
+        status: 401,
+        text:   () => Promise.resolve('Unauthorized'),
+        json:   () => Promise.resolve({ error: 'Unauthorized' }),
+      });
+      const err = await api.fetchAllVisits().catch(e => e);
+      expect(err).toBe(api.AUTH_EXPIRED);
+    });
+  });
+
+  // ── visitToBackend: createdAt omitted ────────────────────────────────────────
+
+  describe('visitToBackend createdAt', () => {
+    it('does not send createdAt in POST body (Lambda owns it)', async () => {
+      mockFetch({ parkId: 109, date: '2025-07-04', visitId: 'abc' });
+      const visit = {
+        parkId: 109, visitId: 'abc', visitDate: '2025-07-04',
+        personalNote: '', rating: 0, gameScore: '', photoKeys: [],
+        createdAt: '2025-01-01T00:00:00Z',
+      };
+      await api.saveVisit(visit);
+      const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+      expect(body.createdAt).toBeUndefined();
+    });
+
+    it('sends visited: true in POST body', async () => {
+      mockFetch({ parkId: 109, date: '2025-07-04', visitId: 'abc' });
+      await api.saveVisit({ parkId: 109, visitId: 'abc', visitDate: '2025-07-04', personalNote: '', rating: 0, gameScore: '', photoKeys: [] });
+      const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+      expect(body.visited).toBe(true);
     });
   });
 

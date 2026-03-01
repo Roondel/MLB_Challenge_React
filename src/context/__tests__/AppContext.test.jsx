@@ -10,6 +10,13 @@ vi.mock('../../services/api', () => ({
   fetchAllTrips:  vi.fn().mockResolvedValue([]),
 }));
 
+// Mock useAuth so AppContext can render without a real Cognito configuration.
+// isAuthenticated=true and loading=false simulate a signed-in user.
+vi.mock('../AuthContext.jsx', () => ({
+  useAuth: vi.fn(() => ({ isAuthenticated: true, loading: false })),
+  AuthProvider: ({ children }) => children,
+}));
+
 import { AppProvider, useApp } from '../AppContext.jsx';
 
 const wrapper = ({ children }) => <AppProvider>{children}</AppProvider>;

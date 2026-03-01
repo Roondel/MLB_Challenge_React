@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "-": "^0.0.1",
+    "aws-amplify": "^6.16.2",
     "hmr": "^0.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
@@ -27,6 +28,7 @@
     "save-dev": "^0.0.1-security"
   },
   "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1000.0",
     "@aws-sdk/client-dynamodb": "^3.893.0",
     "@aws-sdk/client-s3": "^3.893.0",
     "@aws-sdk/lib-dynamodb": "^3.893.0",

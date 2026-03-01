@@ -2,12 +2,14 @@ import { test, expect } from '@playwright/test';
 import { createTrip, deleteTrip } from '../helpers/api-client.js';
 import { getTripFromDynamo, waitForTripDeletion } from '../helpers/aws-client.js';
 import { SEED_TRIP } from '../helpers/test-data.js';
+import { signInViaUI } from '../helpers/auth-helper.js';
 
 const TRIP_ID = 'e2e-test-trip-001';
 
 test.describe.serial('Trips — save, load, delete', () => {
-  test.beforeEach(async () => {
+  test.beforeEach(async ({ page }) => {
     await deleteTrip(TRIP_ID).catch(() => {});
+    await signInViaUI(page);
   });
 
   test.afterAll(async () => {
@@ -38,8 +40,11 @@ test.describe.serial('Trips — save, load, delete', () => {
     await page.goto('/trip');
     await expect(page.getByText('E2E Test Trip')).toBeVisible({ timeout: 10_000 });
 
-    // Nuke localStorage
-    await page.evaluate(() => localStorage.clear());
+    // Clear only app data keys — Amplify auth keys must survive for re-auth to work
+    await page.evaluate(() => {
+      localStorage.removeItem('ballpark_visits');
+      localStorage.removeItem('ballpark_trips');
+    });
 
     // Reload
     await page.reload();

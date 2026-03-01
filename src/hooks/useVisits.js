@@ -1,6 +1,7 @@
 import { useApp } from '../context/AppContext';
 import {
   API_AVAILABLE,
+  AUTH_EXPIRED,
   saveVisit as apiSaveVisit,
   deleteVisit as apiDeleteVisit,
 } from '../services/api';
@@ -21,6 +22,7 @@ export function useVisits() {
       try {
         await apiSaveVisit(newVisit);
       } catch (err) {
+        if (err === AUTH_EXPIRED) { window.location.reload(); return newVisit; }
         console.error('Failed to save visit to API:', err);
       }
     }
@@ -34,6 +36,7 @@ export function useVisits() {
         const current = state.visits.find(v => v.visitId === visitId);
         if (current) await apiSaveVisit({ ...current, ...updates });
       } catch (err) {
+        if (err === AUTH_EXPIRED) { window.location.reload(); return; }
         console.error('Failed to update visit in API:', err);
       }
     }
@@ -47,6 +50,7 @@ export function useVisits() {
       try {
         await apiDeleteVisit(visit.parkId);
       } catch (err) {
+        if (err === AUTH_EXPIRED) { window.location.reload(); return; }
         console.error('Failed to delete visit from API:', err);
       }
     }

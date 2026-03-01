@@ -5,6 +5,7 @@ import {
   fetchAllVisits,
   fetchAllTrips,
 } from '../services/api';
+import { useAuth } from './AuthContext.jsx';
 
 const AppContext = createContext(null);
 
@@ -66,14 +67,16 @@ function reducer(state, action) {
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const { isAuthenticated, loading: authLoading } = useAuth();
 
   // Start as loaded when running without API (localStorage-only mode)
   const [visitsLoaded, setVisitsLoaded] = useState(!API_AVAILABLE);
   const [tripsLoaded,  setTripsLoaded]  = useState(!API_AVAILABLE);
 
-  // On mount: fetch authoritative data from the API and replace the localStorage seed
+  // Fetch visits once auth is confirmed — guards against 401 on initial load
   useEffect(() => {
-    if (!API_AVAILABLE) return;
+    if (!API_AVAILABLE || authLoading || !isAuthenticated) return;
+    setVisitsLoaded(false);
     fetchAllVisits()
       .then(visits => {
         dispatch({ type: 'SET_VISITS', payload: visits });
@@ -81,10 +84,11 @@ export function AppProvider({ children }) {
       })
       .catch(err => console.error('Failed to load visits from API:', err))
       .finally(() => setVisitsLoaded(true));
-  }, []);
+  }, [isAuthenticated, authLoading]);
 
   useEffect(() => {
-    if (!API_AVAILABLE) return;
+    if (!API_AVAILABLE || authLoading || !isAuthenticated) return;
+    setTripsLoaded(false);
     fetchAllTrips()
       .then(trips => {
         dispatch({ type: 'SET_TRIPS', payload: trips });
@@ -92,7 +96,7 @@ export function AppProvider({ children }) {
       })
       .catch(err => console.error('Failed to load trips from API:', err))
       .finally(() => setTripsLoaded(true));
-  }, []);
+  }, [isAuthenticated, authLoading]);
 
   // Mirror to localStorage on every change — serves as warm cache for next
   // cold load and as a fallback if the API is temporarily unavailable.

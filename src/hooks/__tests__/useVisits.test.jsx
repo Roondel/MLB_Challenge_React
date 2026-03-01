@@ -4,11 +4,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({ isAuthenticated: true, loading: false }),
+}));
+
 const mockApiSaveVisit   = vi.fn().mockResolvedValue({});
 const mockApiDeleteVisit = vi.fn().mockResolvedValue({});
 
 vi.mock('../../services/api', () => ({
   API_AVAILABLE:  true,
+  AUTH_EXPIRED:   Symbol('AUTH_EXPIRED'),
   saveVisit:      (...args) => mockApiSaveVisit(...args),
   deleteVisit:    (...args) => mockApiDeleteVisit(...args),
   // Never-resolving promises: AppProvider's initial load effects won't dispatch

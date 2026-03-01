@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Map, Plane, Camera } from 'lucide-react';
+import { LayoutDashboard, Map, Plane, Camera, LogOut } from 'lucide-react';
 import { useVisits } from '../../hooks/useVisits';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { COGNITO_CONFIGURED } from '../../services/auth.js';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -11,6 +13,7 @@ const navItems = [
 
 export default function Sidebar() {
   const { visitedCount } = useVisits();
+  const { user, signOut } = useAuth();
 
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-dark-800 border-r border-dark-600 h-screen sticky top-0">
@@ -39,11 +42,26 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
-      <div className="p-4 border-t border-dark-600">
+      <div className="p-4 border-t border-dark-600 space-y-3">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500" />
           <span className="text-xs text-gray-500">MLB API Connected</span>
         </div>
+        {COGNITO_CONFIGURED && user && (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500 truncate" title={user.email}>
+              {user.email}
+            </p>
+            <button
+              onClick={signOut}
+              className="flex items-center gap-2 text-xs text-gray-400 hover:text-white
+                         hover:bg-dark-700 rounded-lg px-3 py-2 w-full transition-colors"
+            >
+              <LogOut size={14} />
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

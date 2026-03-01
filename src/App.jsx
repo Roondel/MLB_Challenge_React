@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { AppProvider } from './context/AppContext';
 import { ToastProvider } from './components/layout/Toast';
 import ErrorBoundary from './components/layout/ErrorBoundary';
@@ -11,8 +12,10 @@ import MapPage from './pages/MapPage';
 import TripPlannerPage from './pages/TripPlannerPage';
 import GalleryPage from './pages/GalleryPage';
 import ParkDetailPage from './pages/ParkDetailPage';
+import AuthPage from './pages/AuthPage.jsx';
 import { useNearbyNotifier } from './hooks/useNearbyNotifier';
 import { isIosSafari, isRunningAsStandalone } from './services/notifications';
+import { COGNITO_CONFIGURED } from './services/auth.js';
 
 const IOS_PROMPT_KEY = 'ballpark_ios_prompt_dismissed';
 
@@ -42,7 +45,22 @@ function IosInstallBanner() {
 
 function AppShell() {
   useNearbyNotifier();
+  const { isAuthenticated, loading } = useAuth();
   const showIosBanner = isIosSafari() && !isRunningAsStandalone();
+
+  // While Cognito is checking the existing session, show a minimal spinner
+  if (COGNITO_CONFIGURED && loading) {
+    return (
+      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // When Cognito is configured but user is not authenticated, show auth page
+  if (COGNITO_CONFIGURED && !isAuthenticated) {
+    return <AuthPage />;
+  }
 
   return (
     <div className="flex min-h-screen bg-dark-900">
@@ -68,11 +86,13 @@ function AppShell() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <AppProvider>
-        <ToastProvider>
-          <AppShell />
-        </ToastProvider>
-      </AppProvider>
+      <AuthProvider>
+        <AppProvider>
+          <ToastProvider>
+            <AppShell />
+          </ToastProvider>
+        </AppProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }
