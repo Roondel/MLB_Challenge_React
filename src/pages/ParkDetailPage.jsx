@@ -112,12 +112,14 @@ export default function ParkDetailPage() {
             <h2 className="text-lg font-bold">Your Visit</h2>
             <div className="flex gap-2">
               <button
+                data-testid="edit-visit"
                 onClick={() => setShowCheckIn(true)}
                 className="p-2 hover:bg-dark-700 rounded-lg transition-colors text-gray-400 hover:text-white"
               >
                 <Pencil size={16} />
               </button>
               <button
+                data-testid="delete-visit"
                 onClick={() => setConfirmDelete(true)}
                 className="p-2 hover:bg-dark-700 rounded-lg transition-colors text-gray-400 hover:text-red-400"
               >
@@ -187,6 +189,7 @@ export default function ParkDetailPage() {
           <h2 className="text-lg font-bold mb-1">Not Yet Visited</h2>
           <p className="text-gray-500 text-sm mb-4">Check in when you visit {park.venueName}</p>
           <button
+            data-testid="checkin-button"
             onClick={() => setShowCheckIn(true)}
             className="px-6 py-3 bg-accent hover:bg-accent-hover text-white font-medium rounded-lg transition-colors"
           >
@@ -209,6 +212,7 @@ export default function ParkDetailPage() {
                 Cancel
               </button>
               <button
+                data-testid="confirm-delete"
                 onClick={() => {
                   deleteVisit(visit.visitId);
                   setConfirmDelete(false);

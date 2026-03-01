@@ -6,6 +6,9 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "npx playwright test --config=e2e/playwright.config.js",
+    "test:e2e:headed": "npx playwright test --config=e2e/playwright.config.js --headed",
+    "test:e2e:ui": "npx playwright test --config=e2e/playwright.config.js --ui",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode dev",
@@ -24,12 +27,17 @@
     "save-dev": "^0.0.1-security"
   },
   "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.893.0",
+    "@aws-sdk/client-s3": "^3.893.0",
+    "@aws-sdk/lib-dynamodb": "^3.893.0",
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "dotenv": "^17.3.1",
     "jsdom": "^28.1.0",
     "tailwindcss": "^4.0.0",
     "vite": "^6.4.1",
