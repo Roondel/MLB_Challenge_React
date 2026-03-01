@@ -11,6 +11,15 @@ export const TEST_PARK_ID_2 = '110';
 export const TABLE_NAME = process.env.E2E_TABLE_NAME || 'mlb-challenge-dev';
 export const AWS_REGION = 'eu-west-1';
 
+// Cognito sub for the dedicated E2E test user.
+// Set E2E_TEST_USER_SUB in .env.dev after creating the user via:
+//   aws cognito-idp admin-create-user ...
+//   aws cognito-idp admin-set-user-password --permanent ...
+export const TEST_USER_SUB = process.env.E2E_TEST_USER_SUB || 'e2e-placeholder-sub';
+
+// S3 photo key uses the test user's sub (Phase 3 — userId in path)
+export const PHOTO_S3_KEY = `photos/${TEST_USER_SUB}/${TEST_PARK_ID}/photo.jpg`;
+
 // A default visit payload for seeding
 export const SEED_VISIT = {
   parkId: TEST_PARK_ID,
@@ -25,14 +34,13 @@ export const SEED_VISIT = {
 };
 
 // A default trip payload for seeding
-// Fields must match what TripPlannerPage expects: selectedParks, routeResult, etc.
+// Fields must match what the trips Lambda expects after Phase 3
 export const SEED_TRIP = {
-  tripId: 'e2e-test-trip-001',
-  name: 'E2E Test Trip',
-  selectedParks: [TEST_PARK_ID, TEST_PARK_ID_2],
-  routeResult: null,
+  tripId:    'e2e-test-trip-001',
+  name:      'E2E Test Trip',
+  parks:     [TEST_PARK_ID, TEST_PARK_ID_2],
+  itinerary: null,
   startDate: '2025-07-01',
-  endDate: '2025-07-10',
+  endDate:   '2025-07-10',
   startCity: 'Phoenix, AZ',
-  savedAt: new Date().toISOString(),
 };

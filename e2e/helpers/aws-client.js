@@ -1,16 +1,14 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { S3Client, HeadObjectCommand, ListObjectVersionsCommand } from '@aws-sdk/client-s3';
-import { TABLE_NAME, AWS_REGION } from './test-data.js';
+import { TABLE_NAME, AWS_REGION, TEST_USER_SUB } from './test-data.js';
 
 // ── Clients ─────────────────────────────────────────────────────────────
 
 const dynamoRaw = new DynamoDBClient({ region: AWS_REGION });
-const ddb = DynamoDBDocumentClient.from(dynamoRaw);
+const ddb       = DynamoDBDocumentClient.from(dynamoRaw);
+const s3        = new S3Client({ region: AWS_REGION });
 
-const s3 = new S3Client({ region: AWS_REGION });
-
-// Resolve photos bucket name from env or use a sensible lookup
 const PHOTOS_BUCKET = process.env.E2E_PHOTOS_BUCKET || null;
 
 async function getPhotosBucket() {
@@ -27,7 +25,10 @@ async function getPhotosBucket() {
 export async function getVisitFromDynamo(parkId) {
   const { Item } = await ddb.send(new GetCommand({
     TableName: TABLE_NAME,
-    Key: { PK: `VISIT#${parkId}`, SK: `VISIT#${parkId}` },
+    Key: {
+      PK: `USER#${TEST_USER_SUB}`,
+      SK: `VISIT#${parkId}`,
+    },
   }));
   return Item || null;
 }
@@ -65,7 +66,10 @@ export async function waitForVisitDeletion(parkId, timeout = 5000) {
 export async function getTripFromDynamo(tripId) {
   const { Item } = await ddb.send(new GetCommand({
     TableName: TABLE_NAME,
-    Key: { PK: `TRIP#${tripId}`, SK: 'METADATA' },
+    Key: {
+      PK: `USER#${TEST_USER_SUB}`,
+      SK: `TRIP#${tripId}`,
+    },
   }));
   return Item || null;
 }
@@ -87,10 +91,10 @@ export async function getS3ObjectHead(key) {
   try {
     const head = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
     return {
-      exists: true,
-      contentType: head.ContentType,
+      exists:        true,
+      contentType:   head.ContentType,
       contentLength: head.ContentLength,
-      versionId: head.VersionId,
+      versionId:     head.VersionId,
     };
   } catch (err) {
     if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {

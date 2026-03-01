@@ -2,11 +2,13 @@ import { test, expect } from '@playwright/test';
 import { createVisit, deleteVisit } from '../helpers/api-client.js';
 import { getVisitFromDynamo, waitForVisitCreation, waitForVisitDeletion, waitForNotesUpdate  } from '../helpers/aws-client.js';
 import { TEST_PARK_ID, TEST_PARK_PATH, SEED_VISIT } from '../helpers/test-data.js';
+import { signInViaUI } from '../helpers/auth-helper.js';
 
 test.describe.serial('Visits — CRUD + persistence', () => {
   // Clean up before each test to ensure a known state
-  test.beforeEach(async () => {
+  test.beforeEach(async ({ page }) => {
     await deleteVisit(TEST_PARK_ID).catch(() => {});
+    await signInViaUI(page);
   });
 
   test.afterAll(async () => {
@@ -103,8 +105,11 @@ test.describe.serial('Visits — CRUD + persistence', () => {
     await page.goto(TEST_PARK_PATH);
     await expect(page.getByText('Persistence test')).toBeVisible({ timeout: 10_000 });
 
-    // Nuke localStorage
-    await page.evaluate(() => localStorage.clear());
+    // Clear only app data keys — Amplify auth keys must survive for re-auth to work
+    await page.evaluate(() => {
+      localStorage.removeItem('ballpark_visits');
+      localStorage.removeItem('ballpark_trips');
+    });
 
     // Reload the page
     await page.reload();

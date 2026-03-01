@@ -3,16 +3,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createVisit, deleteVisit, deletePhoto } from '../helpers/api-client.js';
 import { getS3ObjectHead, listS3Versions, getVisitFromDynamo } from '../helpers/aws-client.js';
-import { TEST_PARK_ID, TEST_PARK_PATH, SEED_VISIT } from '../helpers/test-data.js';
+import { TEST_PARK_ID, TEST_PARK_PATH, SEED_VISIT, PHOTO_S3_KEY } from '../helpers/test-data.js';
+import { signInViaUI } from '../helpers/auth-helper.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEST_PHOTO = path.resolve(__dirname, '..', 'fixtures', 'test-photo.png');
-const PHOTO_S3_KEY = `photos/${TEST_PARK_ID}/photo.jpg`;
 
 test.describe.serial('Photos — upload, display, versioning', () => {
-  test.beforeEach(async () => {
+  test.beforeEach(async ({ page }) => {
     await deleteVisit(TEST_PARK_ID).catch(() => {});
     await deletePhoto(PHOTO_S3_KEY).catch(() => {});
+    await signInViaUI(page);
   });
 
   test.afterAll(async () => {
