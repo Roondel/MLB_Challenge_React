@@ -173,12 +173,15 @@ describe('api module', () => {
   // ── fetchAllTrips / saveTrip / deleteTrip ────────────────────────────────────
 
   describe('fetchAllTrips', () => {
-    it('calls the trips URL and returns the raw array', async () => {
-      const trips = [{ tripId: 'xyz', name: 'West Coast' }];
-      mockFetch(trips);
+    it('calls the trips URL and normalises backend field names', async () => {
+      const backendTrip = { tripId: 'xyz', name: 'West Coast', parks: [109, 119], itinerary: null };
+      mockFetch([backendTrip]);
       const result = await api.fetchAllTrips();
       expect(global.fetch).toHaveBeenCalledWith(TRIPS_URL, expect.anything());
-      expect(result).toEqual(trips);
+      expect(result).toHaveLength(1);
+      expect(result[0].selectedParks).toEqual([109, 119]);
+      expect(result[0].routeResult).toBeNull();
+      expect(result[0].name).toBe('West Coast');
     });
   });
 

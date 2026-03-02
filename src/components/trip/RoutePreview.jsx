@@ -1,5 +1,6 @@
 import { Navigation, AlertTriangle, Calendar } from 'lucide-react';
 import { formatGameDate, formatGameTime } from '../../services/mlbApi';
+import { PARK_BY_ID } from '../../data/parks';
 
 export default function RoutePreview({ routeResult }) {
   if (!routeResult || !routeResult.itinerary || routeResult.itinerary.length === 0) {
@@ -82,7 +83,7 @@ export default function RoutePreview({ routeResult }) {
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="flex items-center gap-1 text-xs text-accent font-medium">
                   <Calendar size={11} />
-                  {formatGameDate(stop.game.date)} at {formatGameTime(stop.game.gameTime)}
+                  {formatGameDate(stop.game.date)} at {formatGameTime(stop.game.gameTime, PARK_BY_ID[stop.parkId]?.timezone)}
                 </span>
                 <span className="text-xs text-gray-600">
                   {stop.game.dayNight === 'D' ? '☀ Day' : '🌙 Night'}
@@ -117,7 +118,7 @@ export default function RoutePreview({ routeResult }) {
 
       <div className="mt-4 p-3 bg-dark-700 rounded-lg">
         <p className="text-xs text-gray-500">
-          Route optimized for schedule feasibility. Game times in your local time zone.
+          Route optimized for schedule feasibility. Game times shown in each venue's local time zone.
         </p>
       </div>
     </div>

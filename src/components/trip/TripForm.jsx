@@ -41,7 +41,7 @@ export default function TripForm({ onSearch, loading }) {
             type="date"
             value={startDate}
             onChange={(e) => handleStartDateChange(e.target.value)}
-            className="w-full bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+            className="w-full bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent cursor-pointer"
             required
           />
         </div>
@@ -52,7 +52,7 @@ export default function TripForm({ onSearch, loading }) {
             value={endDate}
             min={startDate}
             onChange={(e) => { setEndDate(e.target.value); setDateError(''); }}
-            className={`w-full bg-dark-700 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent ${dateError ? 'border-red-500' : 'border-dark-600'}`}
+            className={`w-full bg-dark-700 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent cursor-pointer ${dateError ? 'border-red-500' : 'border-dark-600'}`}
             required
           />
           {dateError && <p className="text-xs text-red-400 mt-1">{dateError}</p>}

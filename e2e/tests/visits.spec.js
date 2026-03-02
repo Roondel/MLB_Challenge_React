@@ -54,12 +54,8 @@ test.describe.serial('Visits — CRUD + persistence', () => {
     // Click edit (pencil icon)
     await page.getByTestId('edit-visit').click();
 
-    // Update notes and rating
+    // Update notes
     await page.locator('textarea').fill('Updated notes via E2E');
-
-    // Click 5th star for rating 5
-    const stars = page.locator('[data-testid="checkin-submit"]').locator('..').locator('button svg');
-    const starButtons = page.locator('form button').filter({ has: page.locator('svg') });
 
     // Submit the form
     await page.getByTestId('checkin-submit').click();

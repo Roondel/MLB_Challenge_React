@@ -45,6 +45,16 @@ export default function TripPlannerPage() {
       });
       setGamesByPark(filtered);
       addToast(`Found ${Object.keys(filtered).length} parks with home games`, 'success');
+
+      // Auto-select the starting city's park if it has games in range
+      if (startCity) {
+        const startPark = PARKS.find(p => `${p.city}, ${p.state}` === startCity);
+        if (startPark && filtered[startPark.teamId]) {
+          const initial = [startPark.teamId];
+          setSelectedParks(initial);
+          setRouteResult(suggestScheduleRoute(initial, startPark.teamId, filtered, startDate));
+        }
+      }
     } catch (err) {
       setError(err.message || 'Failed to fetch schedule. Please try again.');
       addToast('Failed to fetch schedule', 'error');
@@ -77,6 +87,21 @@ export default function TripPlannerPage() {
       setShowSaveInput(false);
       return next;
     });
+  };
+
+  const handleSelectAll = (selectAll) => {
+    const allParkIds = Object.keys(gamesByPark).map(Number);
+    const next = selectAll ? allParkIds : [];
+    setSelectedParks(next);
+    if (next.length > 0) {
+      const startPark = searchParams?.startCity
+        ? PARKS.find(p => `${p.city}, ${p.state}` === searchParams.startCity)
+        : PARK_BY_ID[next[0]];
+      setRouteResult(suggestScheduleRoute(next, startPark?.teamId || next[0], gamesByPark, searchParams.startDate));
+    } else {
+      setRouteResult(null);
+    }
+    setShowSaveInput(false);
   };
 
   const handleSaveTrip = async () => {
@@ -145,6 +170,8 @@ export default function TripPlannerPage() {
             gamesByPark={gamesByPark}
             selectedParks={selectedParks}
             onTogglePark={handleTogglePark}
+            onSelectAll={handleSelectAll}
+            startCityParkId={PARKS.find(p => `${p.city}, ${p.state}` === searchParams?.startCity)?.teamId}
           />
           <RoutePreview routeResult={routeResult} />
         </div>
@@ -233,6 +260,7 @@ export default function TripPlannerPage() {
                 Load
               </button>
               <button
+                data-testid="delete-trip"
                 onClick={() => handleDeleteTrip(trip.tripId)}
                 className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
               >

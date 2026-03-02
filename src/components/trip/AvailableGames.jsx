@@ -1,12 +1,14 @@
 import { PARK_BY_ID } from '../../data/parks';
 import { formatGameDate, formatGameTime } from '../../services/mlbApi';
 
-export default function AvailableGames({ gamesByPark, selectedParks, onTogglePark }) {
-  const parkIds = Object.keys(gamesByPark).map(Number).sort((a, b) => {
-    const parkA = PARK_BY_ID[a];
-    const parkB = PARK_BY_ID[b];
-    return (parkA?.teamName || '').localeCompare(parkB?.teamName || '');
+export default function AvailableGames({ gamesByPark, selectedParks, onTogglePark, onSelectAll, startCityParkId }) {
+  const allParkIds = Object.keys(gamesByPark).map(Number);
+  const parkIds = [...allParkIds].sort((a, b) => {
+    if (a === startCityParkId) return -1;
+    if (b === startCityParkId) return 1;
+    return (PARK_BY_ID[a]?.teamName || '').localeCompare(PARK_BY_ID[b]?.teamName || '');
   });
+  const allSelected = allParkIds.length > 0 && allParkIds.every(id => selectedParks.includes(id));
 
   if (parkIds.length === 0) {
     return (
@@ -22,7 +24,15 @@ export default function AvailableGames({ gamesByPark, selectedParks, onTogglePar
         <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
           Available Parks ({parkIds.length})
         </h3>
-        <span className="text-xs text-gray-500">{selectedParks.length} selected</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onSelectAll?.(!allSelected)}
+            className="text-xs text-accent hover:text-accent-hover transition-colors"
+          >
+            {allSelected ? 'Deselect All' : 'Select All'}
+          </button>
+          <span className="text-xs text-gray-500">{selectedParks.length} selected</span>
+        </div>
       </div>
       <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
         {parkIds.map(parkId => {
@@ -41,11 +51,13 @@ export default function AvailableGames({ gamesByPark, selectedParks, onTogglePar
               }`}
             >
               <div className="flex items-center gap-3">
-                <img
-                  src={`https://www.mlbstatic.com/team-logos/${parkId}.svg`}
-                  alt={park?.abbreviation}
-                  className="w-8 h-8"
-                />
+                <div className="w-8 h-8 rounded-full bg-white flex-shrink-0 p-0.5">
+                  <img
+                    src={`https://www.mlbstatic.com/team-logos/${parkId}.svg`}
+                    alt={park?.abbreviation}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{park?.venueName}</p>
                   <p className="text-xs text-gray-500">{park?.teamName} &middot; {park?.city}, {park?.state}</p>
@@ -58,7 +70,7 @@ export default function AvailableGames({ gamesByPark, selectedParks, onTogglePar
                     key={g.gamePk}
                     className="px-2 py-0.5 bg-dark-800 rounded text-xs text-gray-400"
                   >
-                    {formatGameDate(g.date)} {formatGameTime(g.gameTime)}
+                    {formatGameDate(g.date)} {formatGameTime(g.gameTime, park?.timezone)}
                   </span>
                 ))}
                 {games.length > 6 && (

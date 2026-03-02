@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createVisit, deleteVisit, deletePhoto } from '../helpers/api-client.js';
-import { getS3ObjectHead, listS3Versions, getVisitFromDynamo } from '../helpers/aws-client.js';
+import { getS3ObjectHead, listS3Versions, waitForVisitCreation } from '../helpers/aws-client.js';
 import { TEST_PARK_ID, TEST_PARK_PATH, SEED_VISIT, PHOTO_S3_KEY } from '../helpers/test-data.js';
 import { signInViaUI } from '../helpers/auth-helper.js';
 
@@ -47,8 +47,8 @@ test.describe.serial('Photos — upload, display, versioning', () => {
     // Wait for modal to close
     await expect(page.getByText('Visited', { exact: true })).toBeVisible({ timeout: 15_000 });
 
-    // Verify DynamoDB has the photoKey
-    const item = await getVisitFromDynamo(TEST_PARK_ID);
+    // Verify DynamoDB has the photoKey — poll until the async API write lands
+    const item = await waitForVisitCreation(TEST_PARK_ID);
     expect(item).not.toBeNull();
     expect(item.photoKeys).toBeDefined();
     expect(item.photoKeys.length).toBeGreaterThan(0);

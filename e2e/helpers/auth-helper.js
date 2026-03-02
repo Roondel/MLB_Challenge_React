@@ -59,14 +59,16 @@ export async function getTestAuthToken() {
  * Skips sign-in if Amplify auth keys are already in localStorage (session still valid).
  */
 export async function signInViaUI(page) {
+  // Navigate first — localStorage is not accessible on about:blank
+  await page.goto('/');
+
   // Check if already authenticated (Amplify persists session keys in localStorage)
   const isAlreadyAuth = await page.evaluate(() =>
     Object.keys(localStorage).some(k => k.startsWith('CognitoIdentityServiceProvider'))
   );
   if (isAlreadyAuth) return;
 
-  // Navigate to root — AuthPage renders when not authenticated
-  await page.goto('/');
+  // AuthPage renders when not authenticated
   await page.waitForSelector('[data-testid="auth-submit"]', { timeout: 15_000 });
 
   await page.fill('input[type="email"]',    TEST_EMAIL);
