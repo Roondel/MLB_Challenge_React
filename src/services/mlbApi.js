@@ -97,9 +97,10 @@ export function formatGameDate(dateStr) {
   });
 }
 
-export function formatGameTime(isoStr) {
+export function formatGameTime(isoStr, timezone) {
   return new Date(isoStr).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
+    ...(timezone ? { timeZone: timezone } : {}),
   });
 }

@@ -26,11 +26,14 @@ export default function PhotoCard({ park, visit }) {
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
       ) : (
-        <div className="w-full h-full bg-dark-800 flex flex-col items-center justify-center gap-2">
+        <div
+          className="w-full h-full flex flex-col items-center justify-center gap-2"
+          style={{ backgroundColor: park.primaryColor + '18' }}
+        >
           <img
             src={`https://www.mlbstatic.com/team-logos/${park.teamId}.svg`}
             alt={park.abbreviation}
-            className={`w-10 h-10 ${visit ? 'opacity-50' : 'opacity-20'}`}
+            className={`w-10 h-10 ${visit ? 'opacity-50' : 'opacity-40'}`}
           />
           {!visit && (
             <Camera size={14} className="text-gray-600" />

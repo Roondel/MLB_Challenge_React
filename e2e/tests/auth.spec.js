@@ -4,23 +4,30 @@ const TEST_EMAIL    = process.env.E2E_TEST_EMAIL;
 const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD;
 const VISITS_API    = process.env.VITE_VISITS_API;
 
-test.describe.serial('Authentication', () => {
-  // Sign out before each test to start from an unauthenticated state
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    // Clear Amplify session storage so each test starts unauthenticated
-    await page.evaluate(() => {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('CognitoIdentityServiceProvider') || k.startsWith('amplify'))
-        .forEach(k => localStorage.removeItem(k));
-    });
-    await page.reload();
+test.beforeEach(async ({ page }) => {
+  await page.goto('/', { waitUntil: 'networkidle' });
+
+  // Clear Amplify session keys
+  await page.evaluate(() => {
+    Object.keys(localStorage)
+      .filter(k =>
+        k.startsWith('CognitoIdentityServiceProvider') ||
+        k.startsWith('amplify')
+      )
+      .forEach(k => localStorage.removeItem(k));
   });
+
+  await page.reload({ waitUntil: 'networkidle' });
+
+  // Wait for auth form to be fully stable
+  await page.waitForSelector('[data-testid="auth-submit"]', {
+    state: 'visible'
+  });
+});
 
   test('1. Valid credentials sign in and land on the dashboard', async ({ page }) => {
     // AuthPage should be visible after clearing session
-    await expect(page.getByText('Sign In')).toBeVisible({ timeout: 10_000 });
-
+    await page.getByTestId('auth-submit').click();
     await page.fill('input[type="email"]',    TEST_EMAIL);
     await page.fill('input[type="password"]', TEST_PASSWORD);
     await page.click('[data-testid="auth-submit"]');
@@ -32,7 +39,7 @@ test.describe.serial('Authentication', () => {
   });
 
   test('2. Wrong password shows an error message', async ({ page }) => {
-    await expect(page.getByText('Sign In')).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId('auth-submit').click();
 
     await page.fill('input[type="email"]',    TEST_EMAIL);
     await page.fill('input[type="password"]', 'WrongPassword999!');
@@ -80,7 +87,8 @@ test.describe.serial('Authentication', () => {
   });
 
   test('5. Sign-up flow shows verification code input', async ({ page }) => {
-    await expect(page.getByText('Sign In')).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId('auth-submit').click();
+
 
     // Switch to Sign Up tab
     await page.click('button:has-text("Sign Up")');
@@ -93,7 +101,6 @@ test.describe.serial('Authentication', () => {
     // After submitting, the verification code input should appear
     // (Cognito sends a code; we just verify the UI transitions correctly)
     await expect(
-      page.getByText(/verification code|check your email/i)
+      page.getByText(/Check your email/i)
     ).toBeVisible({ timeout: 15_000 });
   });
-});

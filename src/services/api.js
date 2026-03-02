@@ -104,8 +104,17 @@ export async function deleteVisit(parkId) {
 
 // ── Trips API ────────────────────────────────────────────────────────────────
 
+function tripFromBackend(item) {
+  return {
+    ...item,
+    selectedParks: item.parks     ?? [],
+    routeResult:   item.itinerary ?? null,
+  };
+}
+
 export async function fetchAllTrips() {
-  return apiFetch(TRIPS_API);
+  const items = await apiFetch(TRIPS_API);
+  return items.map(tripFromBackend);
 }
 
 export async function saveTrip(trip) {

@@ -60,9 +60,7 @@ test.describe.serial('Trips — save, load, delete', () => {
     await page.goto('/trip');
     await expect(page.getByText('E2E Test Trip')).toBeVisible({ timeout: 10_000 });
 
-    const tripCard = page.locator('text=E2E Test Trip').locator('..').locator('..');
-    const deleteBtn = tripCard.locator('button').last();
-    await deleteBtn.click();
+    await page.getByTestId('delete-trip').click();
 
     // Wait for the trip to disappear from UI
     await expect(page.getByText('E2E Test Trip')).not.toBeVisible({ timeout: 10_000 });
