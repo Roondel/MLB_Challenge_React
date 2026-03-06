@@ -86,21 +86,31 @@ test.beforeEach(async ({ page }) => {
     expect(visits).toBeNull();
   });
 
-  test('5. Sign-up flow shows verification code input', async ({ page }) => {
-    await page.getByTestId('auth-submit').click();
-
+  test('5. Sign-up flow behaves correctly for this environment', async ({ page }) => {
+    const signupEnabled = process.env.E2E_SIGNUP_ENABLED === 'true';
 
     // Switch to Sign Up tab
     await page.click('button:has-text("Sign Up")');
 
-    // Fill sign-up form with a non-existent email (we won't complete it)
+    // Sign-up form should always be visible regardless of pool config
+    await expect(page.locator('[data-testid="auth-submit"]')).toBeVisible();
+
     await page.fill('input[type="email"]',    `e2e-nouser-${Date.now()}@test.invalid`);
     await page.fill('input[type="password"]', 'ValidPass123!');
     await page.click('[data-testid="auth-submit"]');
 
-    // After submitting, the verification code input should appear
-    // (Cognito sends a code; we just verify the UI transitions correctly)
-    await expect(
-      page.getByText(/Check your email/i)
-    ).toBeVisible({ timeout: 15_000 });
+    if (signupEnabled) {
+      // Pool allows self-signup: expect the email verification step
+      await expect(
+        page.getByText(/Check your email/i)
+      ).toBeVisible({ timeout: 15_000 });
+    } else {
+      // Pool is admin-only (AllowAdminCreateUserOnly: true): expect an error
+      await expect(
+        page.locator('div, p').filter({ hasText: /not allowed|not permitted|error|failed|unauthorized/i }).first()
+      ).toBeVisible({ timeout: 15_000 });
+
+      // Must still be on the auth page (no redirect to app)
+      await expect(page.locator('[data-testid="auth-submit"]')).toBeVisible();
+    }
   });

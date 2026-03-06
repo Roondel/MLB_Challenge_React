@@ -1,0 +1,76 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write .env.dev
+        run: |
+          cat > .env.dev << EOF
+          VITE_VISITS_API=${{ secrets.DEV_VISITS_API }}
+          VITE_TRIPS_API=${{ secrets.DEV_TRIPS_API }}
+          VITE_PHOTOS_API=${{ secrets.DEV_PHOTOS_API }}
+          VITE_COGNITO_USER_POOL_ID=${{ secrets.DEV_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID=${{ secrets.DEV_COGNITO_CLIENT_ID }}
+          VITE_USE_REAL_MAPS=false
+          E2E_BASE_URL=${{ secrets.E2E_BASE_URL }}
+          E2E_TEST_EMAIL=${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD=${{ secrets.E2E_TEST_PASSWORD }}
+          E2E_TEST_USER_SUB=${{ secrets.E2E_TEST_USER_SUB }}
+          E2E_PHOTOS_BUCKET=${{ secrets.E2E_PHOTOS_BUCKET }}
+          EOF
+
+      - name: Build
+        run: npm run build:dev
+
+      - name: Deploy frontend to S3 + invalidate CloudFront
+        run: |
+          chmod +x ./deploy-app.sh
+          ./deploy-app.sh dev
+        env:
+          AWS_REGION: eu-west-1
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+          E2E_TEST_USER_SUB: ${{ secrets.E2E_TEST_USER_SUB }}
+          E2E_PHOTOS_BUCKET: ${{ secrets.E2E_PHOTOS_BUCKET }}
+
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: e2e/test-results/
+          retention-days: 7

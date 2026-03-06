@@ -1,14 +1,5 @@
 {
   "mcpServers": {
-    "awslabs.aws-serverless-mcp": {
-      "command": "uvx",
-      "args": [
-        "awslabs.aws-serverless-mcp-server@latest"
-      ],
-      "env": { 
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
     "aws-iac-mcp-server": {
       "type": "stdio",
       "command": "uvx",
@@ -19,13 +10,26 @@
         "PYTHONWARNINGS": "ignore"
       }
     },
-    "well-architected-security-mcp-server": {
+    "google-maps-platform-code-assist": {
+      "command": "npx",
+      "args": [
+        "-y", "@googlemaps/code-assist-mcp@latest"
+      ]
+    },
+    "awslabs.aws-serverless-mcp": {
       "command": "uvx",
-      "args": ["--from", "awslabs.well-architected-security-mcp-server@latest", "well-architected-security-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "default",
+      "args": [
+        "awslabs.aws-serverless-mcp-server@latest"
+      ],
+      "env": { 
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
     }
   }
 }

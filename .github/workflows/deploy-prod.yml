@@ -1,0 +1,50 @@
+name: Deploy Prod
+
+on:
+  workflow_dispatch:   # Manual trigger only
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write .env.production
+        run: |
+          cat > .env.production << EOF
+          VITE_VISITS_API=${{ secrets.PROD_VISITS_API }}
+          VITE_TRIPS_API=${{ secrets.PROD_TRIPS_API }}
+          VITE_PHOTOS_API=${{ secrets.PROD_PHOTOS_API }}
+          VITE_COGNITO_USER_POOL_ID=${{ secrets.PROD_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID=${{ secrets.PROD_COGNITO_CLIENT_ID }}
+          VITE_USE_REAL_MAPS=false
+          EOF
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy frontend to S3 + invalidate CloudFront
+        run: |
+          chmod +x ./deploy-app.sh
+          ./deploy-app.sh prod
+        env:
+          AWS_REGION: eu-west-1
