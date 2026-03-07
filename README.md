@@ -1,6 +1,6 @@
 # 30 Ballpark Challenge
 
-A personal project to track visits to all 30 MLB ballparks across the United States. The goal: attend a game at every Major League Baseball stadium.
+A personal project to track visits to all 30 MLB ballparks across the United States & Canada. The goal: attend a game at every Major League Baseball stadium.
 
 ## What it does
 

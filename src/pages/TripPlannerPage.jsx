@@ -27,6 +27,15 @@ export default function TripPlannerPage() {
   const [searchParams, setSearchParams] = useState(null);
   const [tripName, setTripName] = useState('');
   const [showSaveInput, setShowSaveInput] = useState(false);
+  const [endParkId, setEndParkId] = useState(null);
+
+  const recomputeRoute = (parks, endId) => {
+    if (parks.length === 0) { setRouteResult(null); return; }
+    const startPark = searchParams?.startCity
+      ? PARKS.find(p => `${p.city}, ${p.state}` === searchParams.startCity)
+      : PARK_BY_ID[parks[0]];
+    setRouteResult(suggestScheduleRoute(parks, startPark?.teamId || parks[0], gamesByPark, searchParams.startDate, endId));
+  };
 
   const handleSearch = async ({ startDate, endDate, startCity }) => {
     setLoading(true);
@@ -35,6 +44,7 @@ export default function TripPlannerPage() {
     setSelectedParks([]);
     setRouteResult(null);
     setShowSaveInput(false);
+    setEndParkId(null);
     setSearchParams({ startDate, endDate, startCity });
 
     try {
@@ -52,7 +62,7 @@ export default function TripPlannerPage() {
         if (startPark && filtered[startPark.teamId]) {
           const initial = [startPark.teamId];
           setSelectedParks(initial);
-          setRouteResult(suggestScheduleRoute(initial, startPark.teamId, filtered, startDate));
+          setRouteResult(suggestScheduleRoute(initial, startPark.teamId, filtered, startDate, endParkId));
         }
       }
     } catch (err) {
@@ -69,20 +79,7 @@ export default function TripPlannerPage() {
         ? prev.filter(id => id !== parkId)
         : [...prev, parkId];
 
-      if (next.length > 0) {
-        const startPark = searchParams?.startCity
-          ? PARKS.find(p => `${p.city}, ${p.state}` === searchParams.startCity)
-          : PARK_BY_ID[next[0]];
-        const result = suggestScheduleRoute(
-          next,
-          startPark?.teamId || next[0],
-          gamesByPark,
-          searchParams.startDate
-        );
-        setRouteResult(result);
-      } else {
-        setRouteResult(null);
-      }
+      recomputeRoute(next, endParkId);
 
       setShowSaveInput(false);
       return next;
@@ -93,14 +90,7 @@ export default function TripPlannerPage() {
     const allParkIds = Object.keys(gamesByPark).map(Number);
     const next = selectAll ? allParkIds : [];
     setSelectedParks(next);
-    if (next.length > 0) {
-      const startPark = searchParams?.startCity
-        ? PARKS.find(p => `${p.city}, ${p.state}` === searchParams.startCity)
-        : PARK_BY_ID[next[0]];
-      setRouteResult(suggestScheduleRoute(next, startPark?.teamId || next[0], gamesByPark, searchParams.startDate));
-    } else {
-      setRouteResult(null);
-    }
+    recomputeRoute(next, endParkId);
     setShowSaveInput(false);
   };
 
@@ -174,6 +164,53 @@ export default function TripPlannerPage() {
             startCityParkId={PARKS.find(p => `${p.city}, ${p.state}` === searchParams?.startCity)?.teamId}
           />
           <RoutePreview routeResult={routeResult} />
+        </div>
+      )}
+
+      {/* End city controls */}
+      {gamesByPark && selectedParks.length > 0 && (
+        <div className="bg-dark-800 rounded-xl border border-dark-600 p-4 space-y-3">
+          <p className="text-sm font-semibold text-gray-300">End destination <span className="font-normal text-gray-500">(optional)</span></p>
+          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!endParkId && endParkId === PARKS.find(p => `${p.city}, ${p.state}` === searchParams?.startCity)?.teamId}
+              onChange={(e) => {
+                const startPark = PARKS.find(p => `${p.city}, ${p.state}` === searchParams?.startCity);
+                const newEnd = e.target.checked ? startPark?.teamId ?? null : null;
+                setEndParkId(newEnd);
+                recomputeRoute(selectedParks, newEnd);
+              }}
+              className="accent-accent w-4 h-4"
+            />
+            Return to starting city
+          </label>
+          <div className="flex items-center gap-2">
+            <select
+              value={endParkId ?? ''}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : null;
+                setEndParkId(val);
+                recomputeRoute(selectedParks, val);
+              }}
+              className="flex-1 bg-dark-700 border border-dark-500 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
+            >
+              <option value="">No end destination</option>
+              {PARKS.map(p => (
+                <option key={p.teamId} value={p.teamId}>
+                  {p.city}, {p.state} — {p.venueName}
+                </option>
+              ))}
+            </select>
+            {endParkId && (
+              <button
+                onClick={() => { setEndParkId(null); recomputeRoute(selectedParks, null); }}
+                className="text-xs text-gray-500 hover:text-white transition-colors whitespace-nowrap"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       )}
 
