@@ -1,12 +1,11 @@
 import { COGNITO_CONFIGURED, getIdToken } from './auth.js';
 
-const VISITS_API = import.meta.env.VITE_VISITS_API;
-const TRIPS_API  = import.meta.env.VITE_TRIPS_API;
-const PHOTOS_API = import.meta.env.VITE_PHOTOS_API;
+const VISITS_API = '/api/visits';
+const TRIPS_API  = '/api/trips';
+const PHOTOS_API = '/api/photos';
 
-// True only when all three Lambda URLs are configured.
-// When false the app runs in localStorage-only mode — no API calls are made.
-export const API_AVAILABLE = !!(VISITS_API && TRIPS_API && PHOTOS_API);
+// Always true — all API traffic routes through CloudFront at relative /api/* paths.
+export const API_AVAILABLE = true;
 
 // Sentinel thrown by apiFetch when the server returns 401.
 // Callers can catch this to trigger a re-auth flow.

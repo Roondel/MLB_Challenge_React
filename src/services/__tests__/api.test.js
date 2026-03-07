@@ -6,9 +6,9 @@ vi.mock('../auth.js', () => ({
   getIdToken: vi.fn().mockResolvedValue('mock-jwt-token'),
 }));
 
-const VISITS_URL = 'https://visits.test.com/';
-const TRIPS_URL  = 'https://trips.test.com/';
-const PHOTOS_URL = 'https://photos.test.com/';
+const VISITS_URL = '/api/visits';
+const TRIPS_URL  = '/api/trips';
+const PHOTOS_URL = '/api/photos';
 
 // Helper: stub global fetch with a resolved JSON response
 function mockFetch(body, ok = true, status = 200) {
@@ -20,42 +20,23 @@ function mockFetch(body, ok = true, status = 200) {
   });
 }
 
-// Each test gets a fresh module with env vars set so module-level constants are correct
 describe('api module', () => {
   let api;
 
   beforeEach(async () => {
-    vi.stubEnv('VITE_VISITS_API', VISITS_URL);
-    vi.stubEnv('VITE_TRIPS_API',  TRIPS_URL);
-    vi.stubEnv('VITE_PHOTOS_API', PHOTOS_URL);
     vi.resetModules();
     api = await import('../api.js');
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
   // ── API_AVAILABLE ────────────────────────────────────────────────────────────
 
   describe('API_AVAILABLE', () => {
-    it('is true when all three env vars are set', () => {
+    it('is always true — paths are hardcoded, no env vars required', () => {
       expect(api.API_AVAILABLE).toBe(true);
-    });
-
-    it('is false when VITE_VISITS_API is missing', async () => {
-      vi.stubEnv('VITE_VISITS_API', '');
-      vi.resetModules();
-      const mod = await import('../api.js');
-      expect(mod.API_AVAILABLE).toBe(false);
-    });
-
-    it('is false when all vars are missing', async () => {
-      vi.unstubAllEnvs();
-      vi.resetModules();
-      const mod = await import('../api.js');
-      expect(mod.API_AVAILABLE).toBe(false);
     });
   });
 

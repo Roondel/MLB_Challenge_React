@@ -35,9 +35,6 @@ jobs:
       - name: Write .env.dev
         run: |
           cat > .env.dev << EOF
-          VITE_VISITS_API=${{ secrets.DEV_VISITS_API }}
-          VITE_TRIPS_API=${{ secrets.DEV_TRIPS_API }}
-          VITE_PHOTOS_API=${{ secrets.DEV_PHOTOS_API }}
           VITE_COGNITO_USER_POOL_ID=${{ secrets.DEV_COGNITO_USER_POOL_ID }}
           VITE_COGNITO_CLIENT_ID=${{ secrets.DEV_COGNITO_CLIENT_ID }}
           VITE_USE_REAL_MAPS=false
