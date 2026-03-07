@@ -24,7 +24,7 @@ export function estimateDriveTime(miles) {
 // --- Schedule-aware trip planner ---
 
 const GAME_DURATION_MS  = 3.5 * 60 * 60 * 1000;
-const BUFFER_BEFORE_MS  = 1   * 60 * 60 * 1000;
+const BUFFER_BEFORE_MS  = 1.5 * 60 * 60 * 1000;
 const DRIVE_SPEED_MPH   = 60;
 // Roads are longer than straight-line distance. 1.3 approximates the
 // typical US road/haversine ratio — gets drive times close to mapping
@@ -37,6 +37,13 @@ const MAX_DAILY_DRIVE_HOURS  = 8;   // max driving hours per day
 const DRIVING_START_HOUR     = 8;   // don't start before 8am
 const DRIVING_END_HOUR       = 20;  // stop driving by 8pm
 const OVERNIGHT_GAME_HOUR    = 19;  // games ending after 7pm → overnight rest before driving
+
+// Distance penalty factor for anti-zigzag selection.
+// Adds virtual time proportional to drive duration so nearby parks are
+// preferred over far ones when game times are close. Tunable: increase
+// if routes still feel zigzaggy, decrease if algorithm skips long jumps
+// too aggressively.
+const ZIGZAG_PENALTY = 2.0;
 
 const SKIP_STATUSES = new Set(['Cancelled', 'Postponed', 'Suspended']);
 
@@ -118,7 +125,7 @@ export function overnightStopsForDrive(departureMs, miles) {
   return calendarDays;
 }
 
-export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, tripStartDate) {
+export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, tripStartDate, endParkId) {
   if (selectedParkIds.length === 0) {
     return { route: [], totalMiles: 0, itinerary: [], unreachableParks: [], warnings: [] };
   }
@@ -204,9 +211,11 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
       if (!game) continue;
 
       const gameStartMs = new Date(game.gameTime).getTime();
+      const driveTimeMs = driveHours(distance) * 3_600_000;
+      const score = gameStartMs + driveTimeMs * ZIGZAG_PENALTY;
 
-      if (!best || gameStartMs < best.gameStartMs || (gameStartMs === best.gameStartMs && distance < best.distance)) {
-        best = { parkId, game, arrivalTime, gameStartMs, distance };
+      if (!best || score < best.score || (score === best.score && driveTimeMs < best.driveTimeMs)) {
+        best = { parkId, game, arrivalTime, gameStartMs, distance, driveTimeMs, score };
       }
     }
 
@@ -263,7 +272,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
     currentPark = PARK_BY_ID[best.parkId];
   }
 
-  const gameDates = itinerary.map(s => s.game.date);
+  const gameDates = itinerary.filter(s => s.game).map(s => s.game.date);
   const uniqueDates = new Set(gameDates);
   if (uniqueDates.size < gameDates.length) {
     warnings.push('Multiple games on the same day — schedule will be tight');
@@ -271,6 +280,40 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
 
   if (unreachableParks.length > 0) {
     warnings.unshift(`${unreachableParks.length} park(s) could not be fit into the schedule`);
+  }
+
+  // Append optional end city leg
+  if (endParkId && itinerary.length > 0 && itinerary[itinerary.length - 1].parkId !== endParkId) {
+    const endPark = PARK_BY_ID[endParkId];
+    if (endPark) {
+      const distance = haversine(currentPark.lat, currentPark.lng, endPark.lat, endPark.lng);
+      const stops = overnightStopsForDrive(currentTime, distance);
+      const arrivalMs = effectiveArrivalTime(currentTime, distance);
+
+      if (stops > 0) {
+        warnings.push(
+          `Drive home to ${endPark.city} requires ${stops} overnight stop${stops > 1 ? 's' : ''} (~${estimateDriveTime(distance)} of driving)`
+        );
+      }
+
+      totalMiles += distance;
+      itinerary.push({
+        parkId: endParkId,
+        parkName: endPark.venueName,
+        teamName: endPark.teamName,
+        city: endPark.city,
+        state: endPark.state,
+        game: null,
+        arrival: new Date(arrivalMs).toISOString(),
+        gameEnd: null,
+        driveFromPrev: {
+          miles: Math.round(distance),
+          driveTime: estimateDriveTime(distance),
+          driveTimeMs: driveHours(distance) * 3_600_000,
+          overnightStops: stops,
+        },
+      });
+    }
   }
 
   return {

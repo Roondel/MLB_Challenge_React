@@ -24,8 +24,9 @@ export default function RoutePreview({ routeResult }) {
     return null;
   }
 
-  const firstDay = routeResult.itinerary[0]?.game.date;
-  const lastDay = routeResult.itinerary[routeResult.itinerary.length - 1]?.game.date;
+  const gameStops = routeResult.itinerary.filter(s => s.game);
+  const firstDay = gameStops[0]?.game.date;
+  const lastDay = gameStops[gameStops.length - 1]?.game.date;
   const daySpan = firstDay && lastDay
     ? Math.ceil((new Date(lastDay) - new Date(firstDay)) / (1000 * 60 * 60 * 24)) + 1
     : 0;
@@ -77,18 +78,24 @@ export default function RoutePreview({ routeResult }) {
             {/* Content */}
             <div className={`flex-1 ${i < routeResult.itinerary.length - 1 ? 'pb-4' : ''}`}>
               <p className="font-medium text-sm">{stop.parkName}</p>
-              <p className="text-xs text-gray-500">
-                {stop.teamName} vs {stop.game.awayTeamName}
-              </p>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="flex items-center gap-1 text-xs text-accent font-medium">
-                  <Calendar size={11} />
-                  {formatGameDate(stop.game.date)} at {formatGameTime(stop.game.gameTime, PARK_BY_ID[stop.parkId]?.timezone)}
-                </span>
-                <span className="text-xs text-gray-600">
-                  {stop.game.dayNight === 'D' ? '☀ Day' : '🌙 Night'}
-                </span>
-              </div>
+              {stop.game ? (
+                <>
+                  <p className="text-xs text-gray-500">
+                    {stop.teamName} vs {stop.game.awayTeamName}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="flex items-center gap-1 text-xs text-accent font-medium">
+                      <Calendar size={11} />
+                      {formatGameDate(stop.game.date)} at {formatGameTime(stop.game.gameTime, PARK_BY_ID[stop.parkId]?.timezone)}
+                    </span>
+                    <span className="text-xs text-gray-600">
+                      {stop.game.dayNight === 'D' ? '☀ Day' : '🌙 Night'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <span className="text-xs text-gray-500 italic">Drive home destination</span>
+              )}
               {stop.driveFromPrev && (
                 <p className="text-xs text-gray-600 mt-0.5">
                   {stop.driveFromPrev.miles} mi · ~{stop.driveFromPrev.driveTime} drive

@@ -12,6 +12,7 @@ vi.mock('../data/parks', () => {
     { teamId: 1, venueName: 'Coors Field',       teamName: 'Colorado Rockies',        city: 'Denver',      state: 'CO', lat: 39.756, lng: -104.994 },
     { teamId: 2, venueName: 'Chase Field',        teamName: 'Arizona Diamondbacks',    city: 'Phoenix',     state: 'AZ', lat: 33.446, lng: -112.067 },
     { teamId: 3, venueName: 'Sutter Health Park', teamName: 'Oakland Athletics',       city: 'Sacramento',  state: 'CA', lat: 38.580, lng: -121.500 },
+    { teamId: 4, venueName: 'Mirror Field',       teamName: 'Mirror Team',             city: 'Denver',      state: 'CO', lat: 39.756, lng: -104.994 },
   ];
   return { PARKS, PARK_BY_ID: Object.fromEntries(PARKS.map(p => [p.teamId, p])) };
 });
@@ -309,5 +310,87 @@ describe('suggestScheduleRoute', () => {
       '2025-04-16'
     );
     expect(result.totalMiles).toBeGreaterThan(0);
+  });
+
+  it('prefers a closer park with a later game over a farther park with an earlier game (anti-zigzag)', () => {
+    // After Denver (depart Apr 17 8am):
+    //   Sacramento (~1033mi): game Apr 19 7:05pm — earlier game, much farther
+    //   Phoenix   (~600mi):   game Apr 19 10pm  — later game, closer
+    //
+    // Without penalty: Sacramento wins (earlier game time)
+    // With ZIGZAG_PENALTY=2.0: Phoenix wins (distance penalty tips the scale)
+    const phoenixLateNight = [{
+      gamePk: 50, date: '2025-04-19', gameTime: iso(2025, 4, 19, 22, 0),
+      status: 'Scheduled', dayNight: 'N', awayTeamName: 'Visitor B',
+    }];
+    const result = suggestScheduleRoute(
+      [1, 2, 3], 1,
+      { 1: denverGames, 2: phoenixLateNight, 3: sacramentoGames },
+      '2025-04-16'
+    );
+    expect(result.itinerary[1].parkId).toBe(2); // Phoenix chosen over farther Sacramento
+  });
+
+  describe('end city (endParkId)', () => {
+    it('appends a final drive leg when endParkId is provided and not the last stop', () => {
+      // Denver → Phoenix games; endParkId=Sacramento (no game selected there)
+      const result = suggestScheduleRoute(
+        [1, 2], 1,
+        { 1: denverGames, 2: phoenixGames },
+        '2025-04-16',
+        3 // endParkId = Sacramento
+      );
+      const lastStop = result.itinerary[result.itinerary.length - 1];
+      expect(lastStop.parkId).toBe(3);
+      expect(lastStop.game).toBeNull();
+      expect(lastStop.driveFromPrev.miles).toBeGreaterThan(0);
+    });
+
+    it('does not duplicate the last stop when endParkId equals the last game park', () => {
+      // Phoenix is already the last game stop; endParkId=Phoenix → no extra leg
+      const result = suggestScheduleRoute(
+        [1, 2], 1,
+        { 1: denverGames, 2: phoenixGames },
+        '2025-04-16',
+        2 // endParkId = Phoenix (already last)
+      );
+      expect(result.itinerary.filter(s => s.parkId === 2)).toHaveLength(1);
+      expect(result.itinerary[result.itinerary.length - 1].game).not.toBeNull();
+    });
+
+    it('does not append a final leg when endParkId is omitted', () => {
+      const result = suggestScheduleRoute(
+        [1, 2], 1,
+        { 1: denverGames, 2: phoenixGames },
+        '2025-04-16'
+      );
+      result.itinerary.forEach(stop => expect(stop.game).not.toBeNull());
+    });
+
+    it('includes end city drive in totalMiles', () => {
+      const withEnd = suggestScheduleRoute(
+        [1, 2], 1, { 1: denverGames, 2: phoenixGames }, '2025-04-16', 3
+      );
+      const without = suggestScheduleRoute(
+        [1, 2], 1, { 1: denverGames, 2: phoenixGames }, '2025-04-16'
+      );
+      expect(withEnd.totalMiles).toBeGreaterThan(without.totalMiles);
+    });
+  });
+
+  it('requires 90 minutes buffer — a game 65 minutes after arrival is unreachable', () => {
+    // Denver 1pm day game: ends 4:30pm, departs immediately (before 7pm threshold)
+    // Park 4 is at Denver's coords → arrival is ~instant (0 miles), effective arrival ~4:30pm
+    // Game at 5:35pm = 65min after arrival → reachable with 60min buffer, NOT with 90min
+    const dayGame = [{
+      gamePk: 40, date: '2025-04-16', gameTime: iso(2025, 4, 16, 13, 0),
+      status: 'Scheduled', dayNight: 'D', awayTeamName: 'Visitor A',
+    }];
+    const tightGame = [{
+      gamePk: 41, date: '2025-04-16', gameTime: iso(2025, 4, 16, 17, 35),
+      status: 'Scheduled', dayNight: 'N', awayTeamName: 'Visitor B',
+    }];
+    const result = suggestScheduleRoute([1, 4], 1, { 1: dayGame, 4: tightGame }, '2025-04-16');
+    expect(result.unreachableParks.some(p => p.parkId === 4)).toBe(true);
   });
 });
