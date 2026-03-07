@@ -2,7 +2,8 @@ import { test, expect } from '@playwright/test';
 
 const TEST_EMAIL    = process.env.E2E_TEST_EMAIL;
 const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD;
-const VISITS_API    = process.env.VITE_VISITS_API;
+const BASE_URL      = (process.env.E2E_BASE_URL || '').replace(/\/$/, '');
+const VISITS_API    = BASE_URL ? `${BASE_URL}/api/visits` : null;
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });

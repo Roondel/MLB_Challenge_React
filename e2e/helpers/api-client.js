@@ -1,18 +1,16 @@
-// Thin wrapper around Lambda Function URLs for test data seeding and cleanup.
+// Thin wrapper around CloudFront API paths for test data seeding and cleanup.
 // These call the same endpoints the frontend uses — all requests are authenticated.
 
 import { getTestAuthToken } from './auth-helper.js';
 
-const VISITS_API = process.env.VITE_VISITS_API;
-const TRIPS_API  = process.env.VITE_TRIPS_API;
-const PHOTOS_API = process.env.VITE_PHOTOS_API;
+const BASE_URL   = (process.env.E2E_BASE_URL || '').replace(/\/$/, '');
+const VISITS_API = `${BASE_URL}/api/visits`;
+const TRIPS_API  = `${BASE_URL}/api/trips`;
+const PHOTOS_API = `${BASE_URL}/api/photos`;
 
 function ensureEnv() {
-  if (!VISITS_API || !TRIPS_API || !PHOTOS_API) {
-    throw new Error(
-      'Missing VITE_*_API env vars. Ensure .env.dev is populated.\n' +
-      'Run: cd ../MLB_challenge_infra && ./deploy.sh dev'
-    );
+  if (!BASE_URL) {
+    throw new Error('Missing E2E_BASE_URL env var.');
   }
 }
 
