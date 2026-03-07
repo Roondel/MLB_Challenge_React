@@ -2,11 +2,11 @@ name: Deploy Dev
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 jobs:
   deploy:
@@ -14,6 +14,8 @@ jobs:
     environment: dev
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -52,7 +54,7 @@ jobs:
       - name: Deploy frontend to S3 + invalidate CloudFront
         run: |
           chmod +x ./deploy-app.sh
-          ./deploy-app.sh dev
+          ./deploy-app.sh dev --skip-build
         env:
           AWS_REGION: eu-west-1
 
@@ -75,3 +77,21 @@ jobs:
           name: playwright-traces
           path: e2e/test-results/
           retention-days: 7
+
+      - name: Tag release
+        run: |
+          git fetch --tags
+          LATEST=$(git tag --list 'v*.*.*' --sort=-version:refname | head -n1)
+          if [ -z "$LATEST" ]; then
+            NEXT="v0.1.0"
+          else
+            MAJOR=$(echo "$LATEST" | cut -d. -f1 | tr -d 'v')
+            MINOR=$(echo "$LATEST" | cut -d. -f2)
+            PATCH=$(echo "$LATEST" | cut -d. -f3)
+            NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$NEXT"
+          git push origin "$NEXT"
+          echo "Tagged: $NEXT"

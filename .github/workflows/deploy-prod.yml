@@ -1,7 +1,11 @@
 name: Deploy Prod
 
 on:
-  workflow_dispatch:   # Manual trigger only
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag to deploy (e.g. v1.2.0)'
+        required: true
 
 permissions:
   id-token: write
@@ -13,6 +17,8 @@ jobs:
     environment: prod
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -46,6 +52,6 @@ jobs:
       - name: Deploy frontend to S3 + invalidate CloudFront
         run: |
           chmod +x ./deploy-app.sh
-          ./deploy-app.sh prod
+          ./deploy-app.sh prod --skip-build
         env:
           AWS_REGION: eu-west-1

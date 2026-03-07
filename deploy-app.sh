@@ -10,6 +10,10 @@
 set -euo pipefail
 
 ENV=${1:-dev}
+SKIP_BUILD=false
+for arg in "$@"; do
+  [ "$arg" = "--skip-build" ] && SKIP_BUILD=true
+done
 REGION=${AWS_REGION:-eu-west-1}
 STACK_NAME="mlb-challenge-${ENV}"
 
@@ -56,13 +60,17 @@ if [ "$ENV" = "dev" ]; then
 fi
 
 # ─── Step 1: Build ────────────────────────────────────────────────────────────
-echo "[1/3] Building app for env: $ENV..."
-if [ "$ENV" = "dev" ]; then
-  npm run build:dev
+if [ "$SKIP_BUILD" = "true" ]; then
+  echo "[1/3] Skipping build (--skip-build passed)."
 else
-  npm run build
+  echo "[1/3] Building app for env: $ENV..."
+  if [ "$ENV" = "dev" ]; then
+    npm run build:dev
+  else
+    npm run build
+  fi
+  echo "      Build complete."
 fi
-echo "      Build complete."
 
 # ─── Step 2: Sync to S3 ───────────────────────────────────────────────────────
 echo ""
