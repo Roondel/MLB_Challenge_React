@@ -3,6 +3,7 @@ import { ChevronRight, MapPin } from 'lucide-react';
 import { useVisits } from '../../hooks/useVisits';
 import { useApp } from '../../context/AppContext';
 import { usePhotoUrl } from '../../hooks/usePhotoUrl';
+import { getTeamLogoUrl } from '../../data/parks';
 
 // Extracted so usePhotoUrl can be called per row (hooks can't be used inside .map())
 function RecentVisitRow({ visit, park }) {
@@ -29,7 +30,7 @@ function RecentVisitRow({ visit, park }) {
       ) : (
         <div className="w-12 h-12 rounded-lg bg-dark-700 flex items-center justify-center">
           <img
-            src={`https://www.mlbstatic.com/team-logos/${visit.parkId}.svg`}
+            src={getTeamLogoUrl(visit.parkId)}
             alt={park?.abbreviation}
             className="w-8 h-8"
           />

@@ -66,12 +66,6 @@ describe('AvailableGames — park list', () => {
     expect(screen.getByText('Oriole Park at Camden Yards')).toBeTruthy();
   });
 
-  it('wraps each logo in a white circular background', () => {
-    const { container } = renderGames();
-    const logoWrappers = container.querySelectorAll('.rounded-full.bg-white');
-    expect(logoWrappers.length).toBe(2);
-  });
-
   it('shows the game count for each park', () => {
     renderGames();
     expect(screen.getAllByText('1 games')).toHaveLength(2);

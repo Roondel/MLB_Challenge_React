@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Camera } from 'lucide-react';
 import { usePhotoUrl } from '../../hooks/usePhotoUrl';
+import { getTeamLogoUrl } from '../../data/parks';
 
 export default function PhotoCard({ park, visit }) {
   // photoKeys[0] may be an S3 key or a legacy base64 string
@@ -31,7 +32,7 @@ export default function PhotoCard({ park, visit }) {
           style={{ backgroundColor: park.primaryColor + '18' }}
         >
           <img
-            src={`https://www.mlbstatic.com/team-logos/${park.teamId}.svg`}
+            src={getTeamLogoUrl(park.teamId)}
             alt={park.abbreviation}
             className={`w-10 h-10 ${visit ? 'opacity-50' : 'opacity-40'}`}
           />

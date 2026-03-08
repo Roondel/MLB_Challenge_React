@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createTrip, deleteTrip } from '../helpers/api-client.js';
-import { getTripFromDynamo, waitForTripDeletion } from '../helpers/aws-client.js';
+import { getTripFromDynamo, waitForTripDeletion, waitForTripStopNote } from '../helpers/aws-client.js';
 import { SEED_TRIP } from '../helpers/test-data.js';
 import { signInViaUI } from '../helpers/auth-helper.js';
 
@@ -51,6 +51,52 @@ test.describe.serial('Trips — save, load, delete', () => {
 
     // Trip should still appear — loaded from API
     await expect(page.getByText('E2E Test Trip')).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('13. Typing a stop note autosaves it to DynamoDB', async ({ page }) => {
+    // Seed a trip with a routeResult so RoutePreview renders textareas when loaded
+    await createTrip({
+      ...SEED_TRIP,
+      tripId: TRIP_ID,
+      selectedParks: [109],
+      stopNotes: {},
+      routeResult: {
+        totalMiles: 100,
+        warnings: [],
+        unreachableParks: [],
+        itinerary: [{
+          parkId: 109,
+          parkName: 'Chase Field',
+          teamName: 'Arizona Diamondbacks',
+          city: 'Phoenix',
+          driveFromPrev: null,
+          game: {
+            gamePk: 1001,
+            date: '2025-07-04',
+            gameTime: '2025-07-04T20:00:00Z',
+            dayNight: 'N',
+            awayTeamName: 'Los Angeles Dodgers',
+          },
+        }],
+      },
+    });
+
+    await page.goto('/trip');
+    await expect(page.getByText('E2E Test Trip')).toBeVisible({ timeout: 10_000 });
+
+    // Load the trip — RoutePreview should render with a textarea for each stop
+    await page.getByRole('button', { name: /load/i }).click();
+    const textarea = page.getByRole('textbox').first();
+    await expect(textarea).toBeVisible({ timeout: 5_000 });
+
+    // Type a note — debounce fires after 800ms
+    await textarea.fill('Take the light rail');
+
+    // Poll DynamoDB until the note arrives (debounce 800ms + Lambda latency)
+    await waitForTripStopNote(TRIP_ID, 109, 'Take the light rail', 8_000);
+
+    const item = await getTripFromDynamo(TRIP_ID);
+    expect(item.stopNotes?.[109]).toBe('Take the light rail');
   });
 
   test('10. Deleting a trip removes it from DynamoDB', async ({ page }) => {

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { MapPin, ChevronRight } from 'lucide-react';
 import { useVisits } from '../../hooks/useVisits';
+import { getTeamLogoUrl } from '../../data/parks';
 
 export default function ParkCard({ park }) {
   const { isVisited, getVisitByParkId } = useVisits();
@@ -14,7 +15,7 @@ export default function ParkCard({ park }) {
     >
       <div className="w-12 h-12 rounded-lg bg-dark-700 flex items-center justify-center flex-shrink-0">
         <img
-          src={`https://www.mlbstatic.com/team-logos/${park.teamId}.svg`}
+          src={getTeamLogoUrl(park.teamId)}
           alt={park.abbreviation}
           className="w-8 h-8"
         />

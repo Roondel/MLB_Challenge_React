@@ -84,6 +84,16 @@ export async function waitForTripDeletion(tripId, timeout = 5000) {
   throw new Error(`Trip was not deleted within ${timeout}ms`);
 }
 
+export async function waitForTripStopNote(tripId, parkId, expectedNote, timeout = 5000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const item = await getTripFromDynamo(tripId);
+    if (item?.stopNotes?.[parkId] === expectedNote) return item;
+    await new Promise(res => setTimeout(res, 200));
+  }
+  throw new Error(`stopNotes[${parkId}] did not update to "${expectedNote}" within ${timeout}ms`);
+}
+
 // ── S3 Helpers ──────────────────────────────────────────────────────────
 
 export async function getS3ObjectHead(key) {

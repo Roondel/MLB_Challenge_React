@@ -1,4 +1,4 @@
-import { PARK_BY_ID } from '../../data/parks';
+import { PARK_BY_ID, getTeamLogoUrl } from '../../data/parks';
 import { formatGameDate, formatGameTime } from '../../services/mlbApi';
 
 export default function AvailableGames({ gamesByPark, selectedParks, onTogglePark, onSelectAll, startCityParkId }) {
@@ -51,9 +51,9 @@ export default function AvailableGames({ gamesByPark, selectedParks, onTogglePar
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-white flex-shrink-0 p-0.5">
+                <div className="w-8 h-8 flex-shrink-0 p-0.5">
                   <img
-                    src={`https://www.mlbstatic.com/team-logos/${parkId}.svg`}
+                    src={getTeamLogoUrl(parkId)}
                     alt={park?.abbreviation}
                     className="w-full h-full object-contain"
                   />

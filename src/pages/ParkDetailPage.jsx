@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, MapPin, Calendar, Pencil, Trash2, CheckCircle2, Navigation, Cloud } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useVisits } from '../hooks/useVisits';
+import { getTeamLogoUrl } from '../data/parks';
 import { useToast } from '../components/layout/Toast';
 import { useGeoProximity } from '../hooks/useGeoProximity';
 import { usePhotoUrl } from '../hooks/usePhotoUrl';
@@ -55,7 +56,7 @@ export default function ParkDetailPage() {
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-xl bg-dark-700 flex items-center justify-center flex-shrink-0">
               <img
-                src={`https://www.mlbstatic.com/team-logos/${park.teamId}.svg`}
+                src={getTeamLogoUrl(park.teamId)}
                 alt={park.abbreviation}
                 className="w-12 h-12"
               />

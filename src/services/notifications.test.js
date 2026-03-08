@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { getTeamLogoUrl } from '../data/parks';
 import {
   isIosSafari,
   isRunningAsStandalone,
@@ -151,7 +152,7 @@ describe('showParkNotification', () => {
     expect(showNotification).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        icon: 'https://www.mlbstatic.com/team-logos/109.svg',
+        icon: getTeamLogoUrl(CHASE_FIELD.teamId)
       })
     );
   });

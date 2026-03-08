@@ -28,11 +28,13 @@ export function isIosSafari() {
   return isIos && isSafari;
 }
 
+import { getTeamLogoUrl } from '../data/parks';
+
 export function showParkNotification(park, swReg) {
   const title = `You're near ${park.venueName}!`;
   const options = {
     body: `${park.teamName} — tap to check in`,
-    icon: `https://www.mlbstatic.com/team-logos/${park.teamId}.svg`,
+    icon: getTeamLogoUrl(park.teamId),
     tag: `park-nearby-${park.teamId}`,
     renotify: false,
     data: { parkUrl: `/parks/${park.teamId}` },

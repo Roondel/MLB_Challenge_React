@@ -137,7 +137,7 @@ export const PARKS = [
     lng: -83.0485,
     timezone: "America/Detroit",
     division: "AL Central",
-    primaryColor: "#FA4616",
+    primaryColor: "#1a16fa",
   },
   {
     teamId: 117,
@@ -319,7 +319,7 @@ export const PARKS = [
     lng: -117.1570,
     timezone: "America/Los_Angeles",
     division: "NL West",
-    primaryColor: "#A0522D",
+    primaryColor: "#070000",
   },
   {
     teamId: 137,
@@ -422,3 +422,15 @@ export const PARKS = [
 ];
 
 export const PARK_BY_ID = Object.fromEntries(PARKS.map(p => [p.teamId, p]));
+
+const DEFAULT_LOGO = new Set([ 117, 158, 111, 146, 121, 138 ]); 
+const CAP_ON_DARK = new Set([ 114, 144, 147, 111, 119, 138, 139, 143 ]);
+export function getTeamLogoUrl(teamId) {
+  const id = Number(teamId);
+  if (DEFAULT_LOGO.has(id)) {
+    return `https://www.mlbstatic.com/team-logos/${id}.svg`;
+  } if (CAP_ON_DARK.has(id)) {
+    return `https://www.mlbstatic.com/team-logos/team-cap-on-dark/${id}.svg`;
+  }
+  return  `https://www.mlbstatic.com/team-logos/team-primary-on-dark/${id}.svg`;
+}
