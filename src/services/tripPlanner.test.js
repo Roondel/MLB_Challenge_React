@@ -30,13 +30,13 @@ const iso = (y, m, d, h = 0, min = 0) => {
 
 describe('estimateDriveTime', () => {
   it('returns only minutes for drives under 1 hour', () => {
-    // 30mi * 1.3 road factor / 60mph = 0.65h = 39min
-    expect(estimateDriveTime(30)).toBe('39m');
+    // 30mi * 1.4 road factor / 60mph = 0.7h = 42min
+    expect(estimateDriveTime(30)).toBe('42m');
   });
 
   it('returns hours and minutes for longer drives', () => {
-    // 60mi * 1.3 / 60 = 1.3h → 1h 18m
-    expect(estimateDriveTime(60)).toBe('1h 18m');
+    // 60mi * 1.4 / 60 = 1.4h → 1h 24m
+    expect(estimateDriveTime(60)).toBe('1h 24m');
   });
 
   it('handles zero miles', () => {
@@ -117,8 +117,8 @@ describe('overnightStopsForDrive', () => {
   });
 
   it('returns 2 for a drive spanning two overnights', () => {
-    // 8am, 1033mi: ~22.4h driving → depart Apr 17, arrive Apr 19
-    expect(overnightStopsForDrive(ts(2025, 4, 17, 8, 0), 1033)).toBe(2);
+    // 8am, 1033mi: 1.4 factor → ~24.1h driving → depart Apr 17, arrive Apr 20
+    expect(overnightStopsForDrive(ts(2025, 4, 17, 8, 0), 1033)).toBe(3);
   });
 });
 

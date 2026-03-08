@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Trash2, FolderOpen } from 'lucide-react';
 import { PARKS, PARK_BY_ID } from '../data/parks';
 import { fetchHomeGamesByPark } from '../services/mlbApi';
@@ -28,6 +28,39 @@ export default function TripPlannerPage() {
   const [tripName, setTripName] = useState('');
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [endParkId, setEndParkId] = useState(null);
+  const [stopNotes, setStopNotes] = useState({});
+  const [loadedTripId, setLoadedTripId] = useState(null);
+  const notesSaveTimerRef = useRef(null);
+
+  const handleNoteChange = (parkId, text) => {
+    const updated = { ...stopNotes, [parkId]: text };
+    setStopNotes(updated);
+
+    if (notesSaveTimerRef.current) clearTimeout(notesSaveTimerRef.current);
+    notesSaveTimerRef.current = setTimeout(async () => {
+      if (!loadedTripId) return;
+      const payload = { tripId: loadedTripId, stopNotes: updated };
+      dispatch({ type: 'UPDATE_TRIP', payload });
+      if (API_AVAILABLE) {
+        const trip = state.tripPlans.find(t => t.tripId === loadedTripId);
+        if (trip) {
+          try {
+            await apiSaveTrip({ ...trip, stopNotes: updated });
+          } catch (err) {
+            console.error('Failed to save notes:', err);
+          }
+        }
+      }
+      addToast('Notes saved', 'success');
+    }, 800);
+  };
+
+  const handleReplan = () => {
+    if (!searchParams) return;
+    setLoadedTripId(null);
+    setStopNotes({});
+    handleSearch(searchParams);
+  };
 
   const recomputeRoute = (parks, endId) => {
     if (parks.length === 0) { setRouteResult(null); return; }
@@ -45,6 +78,8 @@ export default function TripPlannerPage() {
     setRouteResult(null);
     setShowSaveInput(false);
     setEndParkId(null);
+    setStopNotes({});
+    setLoadedTripId(null);
     setSearchParams({ startDate, endDate, startCity });
 
     try {
@@ -105,6 +140,7 @@ export default function TripPlannerPage() {
       startCity: searchParams.startCity,
       selectedParks,
       routeResult,
+      stopNotes: {},
     };
     dispatch({ type: 'SAVE_TRIP', payload: tripPayload });
     setTripName('');
@@ -123,6 +159,8 @@ export default function TripPlannerPage() {
     setSearchParams({ startDate: trip.startDate, endDate: trip.endDate, startCity: trip.startCity });
     setSelectedParks(trip.selectedParks);
     setRouteResult(trip.routeResult);
+    setStopNotes(trip.stopNotes || {});
+    setLoadedTripId(trip.tripId);
     setGamesByPark(null);
     addToast(`Loaded "${trip.name}"`, 'success');
   };
@@ -165,6 +203,16 @@ export default function TripPlannerPage() {
           />
           <RoutePreview routeResult={routeResult} />
         </div>
+      )}
+
+      {/* Loaded trip route preview (no live game data) */}
+      {!gamesByPark && routeResult && (
+        <RoutePreview
+          routeResult={routeResult}
+          stopNotes={stopNotes}
+          onNoteChange={handleNoteChange}
+          onReplan={handleReplan}
+        />
       )}
 
       {/* End city controls */}
@@ -284,10 +332,26 @@ export default function TripPlannerPage() {
           {state.tripPlans.map(trip => (
             <div key={trip.tripId} className="bg-dark-800 border border-dark-600 rounded-xl px-4 py-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{trip.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium truncate">{trip.name}</p>
+                  {trip.stopNotes && Object.values(trip.stopNotes).some(n => n?.trim()) && (
+                    <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-accent" title="Has notes" />
+                  )}
+                </div>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {trip.startDate} → {trip.endDate} · {trip.selectedParks.length} park{trip.selectedParks.length !== 1 ? 's' : ''}
+                  {trip.routeResult?.totalMiles > 0 && ` · ~${trip.routeResult.totalMiles.toLocaleString()} mi`}
                 </p>
+                {trip.routeResult?.itinerary && (() => {
+                  const cities = trip.routeResult.itinerary.filter(s => s.game).map(s => s.city);
+                  const shown = cities.slice(0, 4);
+                  const extra = cities.length - shown.length;
+                  return shown.length > 0 ? (
+                    <p className="text-xs text-gray-600 mt-0.5 truncate">
+                      {shown.join(' → ')}{extra > 0 ? ` +${extra} more` : ''}
+                    </p>
+                  ) : null;
+                })()}
               </div>
               <button
                 onClick={() => handleLoadTrip(trip)}

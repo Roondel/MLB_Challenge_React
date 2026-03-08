@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -106,9 +106,9 @@ describe('RoutePreview — itinerary', () => {
     expect(screen.getByText(/Baltimore Orioles vs New York Yankees/i)).toBeTruthy();
   });
 
-  it('shows ☀ Day for day games', () => {
+  it('shows 🔆 Day for day games', () => {
     render(<RoutePreview routeResult={MINIMAL_ROUTE} />);
-    expect(screen.getByText('☀ Day')).toBeTruthy();
+    expect(screen.getByText('🔆 Day')).toBeTruthy();
   });
 
   it('shows 🌙 Night for night games', () => {
@@ -205,5 +205,82 @@ describe('RoutePreview — unreachable parks', () => {
   it('does not render the unreachable section when list is empty', () => {
     const { container } = render(<RoutePreview routeResult={MINIMAL_ROUTE} />);
     expect(container.querySelector('.bg-red-900\\/20')).toBeNull();
+  });
+});
+// ── Notes / Re-plan (added props) ─────────────────────────────────────────────
+
+describe('RoutePreview notes', () => {
+  it('does not render textareas in read-only mode (no stopNotes/onNoteChange props)', () => {
+    render(<RoutePreview routeResult={MINIMAL_ROUTE} />);
+    expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+  });
+
+  it('renders a textarea for each stop when onNoteChange is provided', () => {
+    render(
+      <RoutePreview
+        routeResult={MINIMAL_ROUTE}
+        stopNotes={{}}
+        onNoteChange={vi.fn()}
+      />
+    );
+    expect(screen.getAllByRole('textbox')).toHaveLength(2);
+  });
+
+  it('textarea shows existing note text from stopNotes', () => {
+    render(
+      <RoutePreview
+        routeResult={MINIMAL_ROUTE}
+        stopNotes={{ 109: 'Take the train', 110: '' }}
+        onNoteChange={vi.fn()}
+      />
+    );
+    const textareas = screen.getAllByRole('textbox');
+    expect(textareas[0].value).toBe('Take the train');
+    expect(textareas[1].value).toBe('');
+  });
+
+  it('calls onNoteChange with correct parkId and new text when textarea changes', () => {
+    const onNoteChange = vi.fn();
+    render(
+      <RoutePreview
+        routeResult={MINIMAL_ROUTE}
+        stopNotes={{}}
+        onNoteChange={onNoteChange}
+      />
+    );
+    const textareas = screen.getAllByRole('textbox');
+    fireEvent.change(textareas[1], { target: { value: 'Stay at Hostel' } });
+    expect(onNoteChange).toHaveBeenCalledWith(110, 'Stay at Hostel');
+  });
+
+  it('does not render re-plan button when onReplan is not provided', () => {
+    render(<RoutePreview routeResult={MINIMAL_ROUTE} />);
+    expect(screen.queryByText('Re-plan')).not.toBeInTheDocument();
+  });
+
+  it('renders re-plan button when onReplan is provided', () => {
+    render(
+      <RoutePreview
+        routeResult={MINIMAL_ROUTE}
+        stopNotes={{}}
+        onNoteChange={vi.fn()}
+        onReplan={vi.fn()}
+      />
+    );
+    expect(screen.getByText('Re-plan')).toBeInTheDocument();
+  });
+
+  it('calls onReplan when re-plan button is clicked', () => {
+    const onReplan = vi.fn();
+    render(
+      <RoutePreview
+        routeResult={MINIMAL_ROUTE}
+        stopNotes={{}}
+        onNoteChange={vi.fn()}
+        onReplan={onReplan}
+      />
+    );
+    fireEvent.click(screen.getByText('Re-plan'));
+    expect(onReplan).toHaveBeenCalledTimes(1);
   });
 });

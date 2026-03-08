@@ -1,8 +1,8 @@
-import { Navigation, AlertTriangle, Calendar } from 'lucide-react';
+import { Navigation, AlertTriangle, Calendar, RefreshCw } from 'lucide-react';
 import { formatGameDate, formatGameTime } from '../../services/mlbApi';
 import { PARK_BY_ID } from '../../data/parks';
 
-export default function RoutePreview({ routeResult }) {
+export default function RoutePreview({ routeResult, stopNotes, onNoteChange, onReplan }) {
   if (!routeResult || !routeResult.itinerary || routeResult.itinerary.length === 0) {
     if (routeResult?.unreachableParks?.length > 0) {
       return (
@@ -37,9 +37,20 @@ export default function RoutePreview({ routeResult }) {
         <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
           Suggested Route
         </h3>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <Navigation size={12} />
-          ~{routeResult.totalMiles.toLocaleString()} miles
+        <div className="flex items-center gap-3">
+          {onReplan && (
+            <button
+              onClick={onReplan}
+              className="flex items-center gap-1 text-xs text-accent hover:text-accent-hover transition-colors"
+            >
+              <RefreshCw size={11} />
+              Re-plan
+            </button>
+          )}
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Navigation size={14} />
+            ~{routeResult.totalMiles.toLocaleString()} miles
+          </div>
         </div>
       </div>
 
@@ -88,8 +99,8 @@ export default function RoutePreview({ routeResult }) {
                       <Calendar size={11} />
                       {formatGameDate(stop.game.date)} at {formatGameTime(stop.game.gameTime, PARK_BY_ID[stop.parkId]?.timezone)}
                     </span>
-                    <span className="text-xs text-gray-600">
-                      {stop.game.dayNight === 'D' ? '☀ Day' : '🌙 Night'}
+                    <span className={`text-xs ${stop.game.dayNight === 'D' ? 'text-yellow-400' : 'text-gray-500'}`}>
+                      {stop.game.dayNight === 'D' ? '🔆 Day' : '🌙 Night'}
                     </span>
                   </div>
                 </>
@@ -105,6 +116,15 @@ export default function RoutePreview({ routeResult }) {
                     </span>
                   )}
                 </p>
+              )}
+              {onNoteChange && (
+                <textarea
+                  value={stopNotes?.[stop.parkId] || ''}
+                  onChange={e => onNoteChange(stop.parkId, e.target.value)}
+                  placeholder="Transport, accommodation, food, anything..."
+                  rows={2}
+                  className="mt-2 w-full bg-dark-600 border border-dark-500 rounded-lg px-3 py-2 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent resize-y"
+                />
               )}
             </div>
           </div>
