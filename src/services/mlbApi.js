@@ -11,7 +11,7 @@ async function fetchSchedule(startDate, endDate) {
       gamePk: g.gamePk,
       date: d.date,
       gameTime: g.gameDate,
-      dayNight: g.dayNight,
+      dayNight: g.dayNight === 'day' ? 'D' : g.dayNight === 'night' ? 'N' : g.dayNight,
       homeTeamId: g.teams.home.team.id,
       homeTeamName: g.teams.home.team.name,
       awayTeamId: g.teams.away.team.id,

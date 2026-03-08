@@ -26,11 +26,11 @@ export function estimateDriveTime(miles) {
 const GAME_DURATION_MS  = 3.5 * 60 * 60 * 1000;
 const BUFFER_BEFORE_MS  = 1.5 * 60 * 60 * 1000;
 const DRIVE_SPEED_MPH   = 60;
-// Roads are longer than straight-line distance. 1.3 approximates the
+// Roads are longer than straight-line distance. 1.4 approximates the
 // typical US road/haversine ratio — gets drive times close to mapping
 // apps without needing a routing API. For accurate times on specific
 // routes use Google Maps Distance Matrix.
-const ROAD_FACTOR       = 1.3;
+const ROAD_FACTOR       = 1.4;
 
 // Human driving limits
 const MAX_DAILY_DRIVE_HOURS  = 8;   // max driving hours per day
