@@ -46,8 +46,13 @@ function reducer(state, action) {
         ...state,
         visits: state.visits.filter(v => v.visitId !== action.payload),
       };
-    case 'SAVE_TRIP':
-      return { ...state, tripPlans: [...state.tripPlans, action.payload] };
+    case 'SAVE_TRIP': {
+      const exists = state.tripPlans.some(t => t.tripId === action.payload.tripId);
+      const tripPlans = exists
+        ? state.tripPlans.map(t => t.tripId === action.payload.tripId ? action.payload : t)
+        : [...state.tripPlans, action.payload];
+      return { ...state, tripPlans };
+    }
     case 'UPDATE_TRIP':
       return {
         ...state,

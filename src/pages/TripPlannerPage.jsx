@@ -57,9 +57,7 @@ export default function TripPlannerPage() {
 
   const handleReplan = () => {
     if (!searchParams) return;
-    setLoadedTripId(null);
-    setStopNotes({});
-    handleSearch(searchParams);
+    handleSearch(searchParams, { preserveTrip: true });
   };
 
   const recomputeRoute = (parks, endId) => {
@@ -70,7 +68,7 @@ export default function TripPlannerPage() {
     setRouteResult(suggestScheduleRoute(parks, startPark?.teamId || parks[0], gamesByPark, searchParams.startDate, endId));
   };
 
-  const handleSearch = async ({ startDate, endDate, startCity }) => {
+  const handleSearch = async ({ startDate, endDate, startCity }, { preserveTrip = false } = {}) => {
     setLoading(true);
     setError(null);
     setGamesByPark(null);
@@ -78,8 +76,10 @@ export default function TripPlannerPage() {
     setRouteResult(null);
     setShowSaveInput(false);
     setEndParkId(null);
-    setStopNotes({});
-    setLoadedTripId(null);
+    if (!preserveTrip) {
+      setStopNotes({});
+      setLoadedTripId(null);
+    }
     setSearchParams({ startDate, endDate, startCity });
 
     try {
@@ -131,8 +131,9 @@ export default function TripPlannerPage() {
 
   const handleSaveTrip = async () => {
     const name = tripName.trim() || `Trip ${new Date().toLocaleDateString()}`;
+    const tripId = loadedTripId || Date.now().toString();
     const tripPayload = {
-      tripId:   Date.now().toString(),
+      tripId,
       name,
       savedAt:  new Date().toISOString(),
       startDate: searchParams.startDate,
@@ -140,9 +141,10 @@ export default function TripPlannerPage() {
       startCity: searchParams.startCity,
       selectedParks,
       routeResult,
-      stopNotes: {},
+      stopNotes,
     };
     dispatch({ type: 'SAVE_TRIP', payload: tripPayload });
+    if (!loadedTripId) setLoadedTripId(tripId);
     setTripName('');
     setShowSaveInput(false);
     addToast(`"${name}" saved`, 'success');
