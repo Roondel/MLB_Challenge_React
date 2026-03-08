@@ -60,7 +60,7 @@ test.describe.serial('Trips — save, load, delete', () => {
       tripId: TRIP_ID,
       selectedParks: [109],
       stopNotes: {},
-      routeResult: {
+      itinerary: {
         totalMiles: 100,
         warnings: [],
         unreachableParks: [],
@@ -86,10 +86,11 @@ test.describe.serial('Trips — save, load, delete', () => {
 
     // Load the trip — RoutePreview should render with a textarea for each stop
     await page.getByRole('button', { name: /load/i }).click();
-    const textarea = page.getByRole('textbox').first();
+    const textarea = page.getByPlaceholder('Transport, accommodation, food, anything...');
     await expect(textarea).toBeVisible({ timeout: 5_000 });
 
     // Type a note — debounce fires after 800ms
+    await textarea.click();
     await textarea.fill('Take the light rail');
 
     // Poll DynamoDB until the note arrives (debounce 800ms + Lambda latency)

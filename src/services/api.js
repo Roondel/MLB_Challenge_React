@@ -124,6 +124,7 @@ export async function saveTrip(trip) {
       name:      trip.name,
       parks:     trip.selectedParks,
       itinerary: trip.routeResult,
+      stopNotes: trip.stopNotes,
       startDate: trip.startDate,
       endDate:   trip.endDate,
       startCity: trip.startCity,
