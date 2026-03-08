@@ -44,6 +44,19 @@ jobs:
           E2E_TEST_USER_SUB=${{ secrets.E2E_TEST_USER_SUB }}
           E2E_PHOTOS_BUCKET=${{ secrets.E2E_PHOTOS_BUCKET }}
           EOF
+      
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'template'
+          template: "@$HOME/.local/bin/trivy-bin/contrib/html.tpl"
+          output: 'trivy-results.html'
+          exit-code: '1'
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
 
       - name: Build
         run: npm run build:dev
