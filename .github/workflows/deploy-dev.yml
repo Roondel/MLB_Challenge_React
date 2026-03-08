@@ -50,9 +50,8 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          format: 'template'
-          template: "@$HOME/.local/bin/trivy-bin/contrib/html.tpl"
-          output: 'trivy-results.html'
+          format: 'table'
+          output: 'trivy-results.txt'
           exit-code: '1'
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
