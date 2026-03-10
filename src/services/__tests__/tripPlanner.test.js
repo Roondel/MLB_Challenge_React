@@ -5,7 +5,7 @@ import {
   effectiveArrivalTime,
   overnightStopsForDrive,
   suggestScheduleRoute,
-} from './tripPlanner';
+} from '../tripPlanner';
 
 vi.mock('../data/parks', () => {
   const PARKS = [

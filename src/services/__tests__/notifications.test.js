@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getTeamLogoUrl } from '../data/parks';
+import { getTeamLogoUrl } from '../../data/parks';
 import {
   isIosSafari,
   isRunningAsStandalone,
   requestNotificationPermission,
   registerServiceWorker,
   showParkNotification,
-} from './notifications';
+} from '../notifications';
 
 const CHASE_FIELD = { teamId: 109, venueName: 'Chase Field', teamName: 'Arizona Diamondbacks' };
 
