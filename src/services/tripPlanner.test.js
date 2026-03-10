@@ -378,6 +378,27 @@ describe('suggestScheduleRoute', () => {
     });
   });
 
+  it('with null startParkId, does not lock parks[0] — earlier games at other parks remain reachable', () => {
+    // parks[0] is Phoenix (park 2) with a late game (Apr 19)
+    // parks[1] is Denver (park 1) with an earlier game (Apr 16)
+    // With null startParkId the lock never fires: Denver (earlier game) is
+    // scheduled first, then Phoenix. If parks[0] were incorrectly locked as
+    // stop #1, Denver Apr 16 would fall before the forced Apr 19 first stop
+    // and be marked unreachable.
+    const phoenixLate = [{
+      gamePk: 60, date: '2025-04-19', gameTime: iso(2025, 4, 19, 19, 0),
+      status: 'Scheduled', dayNight: 'N', awayTeamName: 'Visitor Z',
+    }];
+    const result = suggestScheduleRoute(
+      [2, 1], null,
+      { 1: denverGames, 2: phoenixLate },
+      '2025-04-14'
+    );
+    expect(result.unreachableParks).toHaveLength(0);
+    expect(result.itinerary[0].parkId).toBe(1); // Denver (Apr 16) scheduled first
+    expect(result.itinerary[1].parkId).toBe(2); // Phoenix (Apr 19) second
+  });
+
   it('requires 90 minutes buffer — a game 65 minutes after arrival is unreachable', () => {
     // Denver 1pm day game: ends 4:30pm, departs immediately (before 7pm threshold)
     // Park 4 is at Denver's coords → arrival is ~instant (0 miles), effective arrival ~4:30pm

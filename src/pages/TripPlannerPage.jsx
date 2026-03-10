@@ -62,10 +62,10 @@ export default function TripPlannerPage() {
 
   const recomputeRoute = (parks, endId) => {
     if (parks.length === 0) { setRouteResult(null); return; }
-    const startPark = searchParams?.startCity
-      ? PARKS.find(p => `${p.city}, ${p.state}` === searchParams.startCity)
-      : PARK_BY_ID[parks[0]];
-    setRouteResult(suggestScheduleRoute(parks, startPark?.teamId || parks[0], gamesByPark, searchParams.startDate, endId));
+    const startParkId = searchParams?.startCity
+      ? PARKS.find(p => `${p.city}, ${p.state}` === searchParams.startCity)?.teamId
+      : null;
+    setRouteResult(suggestScheduleRoute(parks, startParkId, gamesByPark, searchParams.startDate, endId));
   };
 
   const handleSearch = async ({ startDate, endDate, startCity }, { preserveTrip = false } = {}) => {
