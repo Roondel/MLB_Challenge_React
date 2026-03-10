@@ -45,6 +45,10 @@ const OVERNIGHT_GAME_HOUR    = 19;  // games ending after 7pm → overnight rest
 // too aggressively.
 const ZIGZAG_PENALTY = 2.0;
 
+// Beam search width. K=3 tries 3 parallel routes at each step.
+// Increase if routes still miss reachable parks; 3 is fast and effective.
+const BEAM_WIDTH = 3;
+
 const SKIP_STATUSES = new Set(['Cancelled', 'Postponed', 'Suspended']);
 
 function driveHours(miles) {
@@ -123,6 +127,26 @@ export function overnightStopsForDrive(departureMs, miles) {
   arrDate.setHours(0, 0, 0, 0);
   const calendarDays = Math.round((arrDate - depDate) / (24 * 60 * 60 * 1000));
   return calendarDays;
+}
+
+/**
+ * Count how many parks in `remainingSet` have at least one reachable game
+ * from `fromPark` after `fromTime`. Used for beam pruning.
+ */
+function computeReachableCount(fromPark, fromTime, remainingSet, sortedGames) {
+  let count = 0;
+  for (const parkId of remainingSet) {
+    const targetPark = PARK_BY_ID[parkId];
+    if (!targetPark) continue;
+    const distance = haversine(fromPark.lat, fromPark.lng, targetPark.lat, targetPark.lng);
+    const arrivalTime = effectiveArrivalTime(fromTime, distance);
+    const earliestGameStart = arrivalTime + BUFFER_BEFORE_MS;
+    const game = sortedGames[parkId]?.find(g =>
+      new Date(g.gameTime).getTime() >= earliestGameStart
+    );
+    if (game) count++;
+  }
+  return count;
 }
 
 export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, tripStartDate, endParkId) {
