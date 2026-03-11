@@ -56,24 +56,67 @@ function driveHours(miles) {
 }
 
 /**
+ * Returns the local clock hour (0–24 float) at `ms` in the given IANA timezone.
+ * Falls back to the system clock when no timezone is provided (test compatibility).
+ */
+function getLocalHour(ms, tz) {
+  if (!tz) {
+    const d = new Date(ms);
+    return d.getHours() + d.getMinutes() / 60;
+  }
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(new Date(ms));
+  const h = parseInt(parts.find(p => p.type === 'hour').value, 10);
+  const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
+  return (h === 24 ? 0 : h) + m / 60;
+}
+
+/**
+ * Returns the UTC timestamp for DRIVING_START_HOUR:00 on the local calendar date
+ * of `ms` in `tz` (or the next local calendar date when nextDay=true).
+ * Falls back to system-local setHours when no timezone is provided.
+ */
+function advanceToMorning(ms, tz, nextDay) {
+  if (!tz) {
+    const next = new Date(ms);
+    if (nextDay) next.setDate(next.getDate() + 1);
+    next.setHours(DRIVING_START_HOUR, 0, 0, 0);
+    return next.getTime();
+  }
+  // Get the local calendar date at ms in tz (en-CA gives "YYYY-MM-DD")
+  const localDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(ms));
+  let [y, mo, d] = localDate.split('-').map(Number);
+  if (nextDay) {
+    const nd = new Date(Date.UTC(y, mo - 1, d + 1));
+    y = nd.getUTCFullYear(); mo = nd.getUTCMonth() + 1; d = nd.getUTCDate();
+  }
+  // Derive UTC offset from noon-UTC on that date (stable across DST for US timezones)
+  const noonUtc = Date.UTC(y, mo - 1, d, 12);
+  const noonLocal = Math.floor(getLocalHour(noonUtc, tz));
+  const utcOffset = noonLocal - 12; // local = UTC + offset
+  return Date.UTC(y, mo - 1, d, DRIVING_START_HOUR - utcOffset);
+}
+
+/**
  * Compute wall-clock arrival time accounting for:
  * - Max MAX_DAILY_DRIVE_HOURS of driving per calendar day
  * - No driving between DRIVING_END_HOUR and DRIVING_START_HOUR next day
+ * Uses the venue's IANA timezone so calculations are correct regardless of
+ * the user's system clock (e.g. a UK user planning a US road trip).
  */
-export function effectiveArrivalTime(departureMs, miles) {
+export function effectiveArrivalTime(departureMs, miles, timezone) {
   let timeMs = departureMs;
   let hoursLeft = driveHours(miles);
 
   while (hoursLeft > 0.01) {
-    const d = new Date(timeMs);
-    const currentHour = d.getHours() + d.getMinutes() / 60;
+    const currentHour = getLocalHour(timeMs, timezone);
 
-    // Outside driving window — advance to next morning
+    // Outside driving window — advance to next morning in the venue's timezone
     if (currentHour >= DRIVING_END_HOUR || currentHour < DRIVING_START_HOUR) {
-      const next = new Date(timeMs);
-      if (currentHour >= DRIVING_END_HOUR) next.setDate(next.getDate() + 1);
-      next.setHours(DRIVING_START_HOUR, 0, 0, 0);
-      timeMs = next.getTime();
+      timeMs = advanceToMorning(timeMs, timezone, currentHour >= DRIVING_END_HOUR);
       continue;
     }
 
@@ -88,10 +131,7 @@ export function effectiveArrivalTime(departureMs, miles) {
 
     // Still more to drive — rest overnight
     if (hoursLeft > 0.01) {
-      const next = new Date(timeMs);
-      next.setDate(next.getDate() + 1);
-      next.setHours(DRIVING_START_HOUR, 0, 0, 0);
-      timeMs = next.getTime();
+      timeMs = advanceToMorning(timeMs, timezone, true);
     }
   }
 
@@ -101,32 +141,28 @@ export function effectiveArrivalTime(departureMs, miles) {
 /**
  * Earliest departure time after a game ends.
  * Evening games require overnight rest before driving.
+ * Uses the venue's IANA timezone for the hour check.
  */
-export function departureAfterGame(gameEndMs) {
-  const d = new Date(gameEndMs);
-  const hour = d.getHours() + d.getMinutes() / 60;
-
+export function departureAfterGame(gameEndMs, timezone) {
+  const hour = getLocalHour(gameEndMs, timezone);
   if (hour >= OVERNIGHT_GAME_HOUR) {
-    const next = new Date(gameEndMs);
-    next.setDate(next.getDate() + 1);
-    next.setHours(DRIVING_START_HOUR, 0, 0, 0);
-    return next.getTime();
+    return advanceToMorning(gameEndMs, timezone, true);
   }
-
   return gameEndMs;
 }
 
 /**
  * Count overnight stops required for a drive leg.
  */
-export function overnightStopsForDrive(departureMs, miles) {
-  const arrivalMs = effectiveArrivalTime(departureMs, miles);
-  const depDate = new Date(departureMs);
-  const arrDate = new Date(arrivalMs);
-  depDate.setHours(0, 0, 0, 0);
-  arrDate.setHours(0, 0, 0, 0);
-  const calendarDays = Math.round((arrDate - depDate) / (24 * 60 * 60 * 1000));
-  return calendarDays;
+export function overnightStopsForDrive(departureMs, miles, timezone) {
+  const arrivalMs = effectiveArrivalTime(departureMs, miles, timezone);
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    ...(timezone ? { timeZone: timezone } : {}),
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const depDate = new Date(fmt.format(new Date(departureMs)) + 'T00:00:00Z');
+  const arrDate = new Date(fmt.format(new Date(arrivalMs)) + 'T00:00:00Z');
+  return Math.round((arrDate - depDate) / (24 * 60 * 60 * 1000));
 }
 
 /**
@@ -139,7 +175,7 @@ function computeReachableCount(fromPark, fromTime, remainingSet, sortedGames) {
     const targetPark = PARK_BY_ID[parkId];
     if (!targetPark) continue;
     const distance = haversine(fromPark.lat, fromPark.lng, targetPark.lat, targetPark.lng);
-    const arrivalTime = effectiveArrivalTime(fromTime, distance);
+    const arrivalTime = effectiveArrivalTime(fromTime, distance, fromPark.timezone);
     const earliestGameStart = arrivalTime + BUFFER_BEFORE_MS;
     const game = sortedGames[parkId]?.find(g =>
       new Date(g.gameTime).getTime() >= earliestGameStart
@@ -155,7 +191,17 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
   }
 
   let currentPark = PARK_BY_ID[startParkId] || PARK_BY_ID[selectedParkIds[0]];
-  let currentTime = new Date(`${tripStartDate}T${DRIVING_START_HOUR.toString().padStart(2, '0')}:00:00`).getTime();
+
+  // Compute trip start as DRIVING_START_HOUR on tripStartDate in the venue's
+  // local timezone, so a UK user planning a US trip gets 8am CDT/EDT not 8am BST.
+  const startTz = currentPark?.timezone;
+  let currentTime = (() => {
+    if (!startTz) {
+      return new Date(`${tripStartDate}T${DRIVING_START_HOUR.toString().padStart(2, '0')}:00:00`).getTime();
+    }
+    const [sy, smo, sd] = tripStartDate.split('-').map(Number);
+    return advanceToMorning(Date.UTC(sy, smo - 1, sd, 12), startTz, false);
+  })();
 
   const remaining = new Set(selectedParkIds);
   const itinerary = [];
@@ -204,7 +250,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
         driveFromPrev: null,
       });
 
-      currentTime = departureAfterGame(gameEndMs);
+      currentTime = departureAfterGame(gameEndMs, PARK_BY_ID[startParkId]?.timezone);
     } else {
       const park = PARK_BY_ID[startParkId];
       unreachableParks.push({
@@ -216,85 +262,216 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
     }
   }
 
-  // Greedy loop: pick the next park+game with earliest game start time
-  while (remaining.size > 0) {
-    let best = null;
+  // ── Beam search: maintain BEAM_WIDTH candidate routes in parallel ──────────
+  // Each beam is an independent route state. At every step we expand all beams,
+  // prune to BEAM_WIDTH survivors, and repeat until no park remains.
 
-    for (const parkId of remaining) {
-      const targetPark = PARK_BY_ID[parkId];
-      if (!targetPark) continue;
+  // When no fixed start city is given, the user has no origin — treat the
+  // first expansion step as 0-distance to all parks (they pick whichever
+  // game they want to attend first, regardless of where it is).
+  const noOrigin = !PARK_BY_ID[startParkId] && itinerary.length === 0;
 
-      const distance = haversine(currentPark.lat, currentPark.lng, targetPark.lat, targetPark.lng);
-      const arrivalTime = effectiveArrivalTime(currentTime, distance);
-      const earliestGameStart = arrivalTime + BUFFER_BEFORE_MS;
+  // Initialise one beam from the state after the start-park lock above.
+  let beams = [{
+    currentPark,
+    currentTime,
+    remaining: new Set(remaining),
+    itinerary: [...itinerary],
+    unreachableParks: [...unreachableParks],
+    warnings: [...warnings],
+    totalMiles,
+    score: 0,
+    _noOrigin: noOrigin,
+  }];
 
-      const game = sortedGames[parkId].find(g =>
-        new Date(g.gameTime).getTime() >= earliestGameStart
-      );
+  // Clear outer state — we'll restore from the winner at the end.
+  remaining.clear();
 
-      if (!game) continue;
+  while (beams.some(b => b.remaining.size > 0)) {
+    const nextBeams = [];
 
-      const gameStartMs = new Date(game.gameTime).getTime();
-      const driveTimeMs = driveHours(distance) * 3_600_000;
-      const score = gameStartMs + driveTimeMs * ZIGZAG_PENALTY;
-
-      if (!best || score < best.score || (score === best.score && driveTimeMs < best.driveTimeMs)) {
-        best = { parkId, game, arrivalTime, gameStartMs, distance, driveTimeMs, score };
+    for (const beam of beams) {
+      if (beam.remaining.size === 0) {
+        // Terminal beam — null out dedup keys so it is never merged with an
+        // active beam that visits the same park this round.
+        nextBeams.push({ ...beam, _lastParkId: null, _lastGamePk: null });
+        continue;
       }
-    }
 
-    if (!best) {
-      for (const parkId of remaining) {
-        const park = PARK_BY_ID[parkId];
-        unreachableParks.push({
-          parkId,
-          parkName: park?.venueName || 'Unknown',
-          teamName: park?.teamName || 'Unknown',
-          reason: 'No reachable games remaining in your date range',
+      let anyReachable = false;
+
+      // Expand: generate one candidate next-beam per reachable park.
+      for (const parkId of beam.remaining) {
+        const targetPark = PARK_BY_ID[parkId];
+        if (!targetPark) continue;
+
+        // When there is no fixed origin (null startParkId, no start-lock),
+        // treat the first stop as 0 drive distance — the user travels to
+        // whichever first game they choose.
+        const distance = beam._noOrigin ? 0 : haversine(
+          beam.currentPark.lat, beam.currentPark.lng,
+          targetPark.lat, targetPark.lng
+        );
+        const driveTz = beam.currentPark?.timezone;
+        const arrivalTime = effectiveArrivalTime(beam.currentTime, distance, driveTz);
+        const earliestGameStart = arrivalTime + BUFFER_BEFORE_MS;
+
+        const game = sortedGames[parkId].find(g =>
+          new Date(g.gameTime).getTime() >= earliestGameStart
+        );
+        if (!game) continue;
+
+        anyReachable = true;
+
+        const gameStartMs = new Date(game.gameTime).getTime();
+        const driveTimeMs = driveHours(distance) * 3_600_000;
+        const stepScore = gameStartMs + driveTimeMs * ZIGZAG_PENALTY;
+
+        const gameEndMs = gameStartMs + GAME_DURATION_MS;
+        const stops = overnightStopsForDrive(beam.currentTime, distance, driveTz);
+
+        const newWarnings = [...beam.warnings];
+        if (stops > 0) {
+          const park = PARK_BY_ID[parkId];
+          newWarnings.push(
+            `Drive to ${park.city} requires ${stops} overnight stop${stops > 1 ? 's' : ''} (~${estimateDriveTime(distance)} of driving)`
+          );
+        }
+
+        const newItinerary = [
+          ...beam.itinerary,
+          {
+            parkId,
+            parkName: PARK_BY_ID[parkId]?.venueName,
+            teamName: PARK_BY_ID[parkId]?.teamName,
+            city: PARK_BY_ID[parkId]?.city,
+            state: PARK_BY_ID[parkId]?.state,
+            game: {
+              gamePk: game.gamePk,
+              date: game.date,
+              gameTime: game.gameTime,
+              dayNight: game.dayNight,
+              awayTeamName: game.awayTeamName,
+            },
+            arrival: new Date(arrivalTime).toISOString(),
+            gameEnd: new Date(gameEndMs).toISOString(),
+            driveFromPrev: beam.itinerary.length === 0 ? null : {
+              miles: Math.round(distance),
+              driveTime: estimateDriveTime(distance),
+              driveTimeMs: driveHours(distance) * 3600 * 1000,
+              overnightStops: stops,
+            },
+          },
+        ];
+
+        const newRemaining = new Set(beam.remaining);
+        newRemaining.delete(parkId);
+
+        nextBeams.push({
+          currentPark: PARK_BY_ID[parkId],
+          currentTime: departureAfterGame(gameEndMs, targetPark.timezone),
+          remaining: newRemaining,
+          itinerary: newItinerary,
+          unreachableParks: beam.unreachableParks,
+          warnings: newWarnings,
+          totalMiles: beam.totalMiles + distance,
+          score: beam.score + gameStartMs,
+          _stepScore: stepScore,
+          _totalStepScore: (beam._totalStepScore || 0) + stepScore,
+          _lastParkId: parkId,
+          _lastGamePk: game.gamePk,
         });
       }
-      break;
+
+      if (!anyReachable) {
+        // This beam is stuck — flush remaining to unreachable.
+        // Clear _lastParkId so the dedup step treats it as a terminal beam
+        // and never merges it with an active beam that happened to visit the
+        // same park in this round.
+        const stuckBeam = {
+          ...beam,
+          _lastParkId: null,
+          _lastGamePk: null,
+          remaining: new Set(),
+          unreachableParks: [
+            ...beam.unreachableParks,
+            ...[...beam.remaining].map(parkId => {
+              const park = PARK_BY_ID[parkId];
+              return {
+                parkId,
+                parkName: park?.venueName || 'Unknown',
+                teamName: park?.teamName || 'Unknown',
+                reason: 'No reachable games remaining in your date range',
+              };
+            }),
+          ],
+        };
+        nextBeams.push(stuckBeam);
+      }
     }
 
-    remaining.delete(best.parkId);
-    totalMiles += best.distance;
+    // ── Prune to BEAM_WIDTH beams ────────────────────────────────────────────
 
-    const gameEndMs = best.gameStartMs + GAME_DURATION_MS;
-
-    const stops = overnightStopsForDrive(currentTime, best.distance);
-    if (stops > 0) {
-      const park = PARK_BY_ID[best.parkId];
-      warnings.push(
-        `Drive to ${park.city} requires ${stops} overnight stop${stops > 1 ? 's' : ''} (~${estimateDriveTime(best.distance)} of driving)`
-      );
+    // 1. Deduplicate: if two beams chose the same (parkId, gamePk), keep the better one.
+    const seen = new Map();
+    const deduped = [];
+    for (const beam of nextBeams) {
+      const key = beam._lastParkId != null
+        ? `${beam._lastParkId}:${beam._lastGamePk}`
+        : null;
+      if (key == null) {
+        deduped.push(beam);
+        continue;
+      }
+      if (!seen.has(key)) {
+        seen.set(key, deduped.length);
+        deduped.push(beam);
+      } else {
+        const existingIdx = seen.get(key);
+        const existing = deduped[existingIdx];
+        const existingReachable = computeReachableCount(
+          existing.currentPark, existing.currentTime, existing.remaining, sortedGames
+        );
+        const newReachable = computeReachableCount(
+          beam.currentPark, beam.currentTime, beam.remaining, sortedGames
+        );
+        if (newReachable > existingReachable ||
+            (newReachable === existingReachable && (beam._totalStepScore || 0) < (existing._totalStepScore || 0))) {
+          deduped[existingIdx] = beam;
+        }
+      }
     }
 
-    itinerary.push({
-      parkId: best.parkId,
-      parkName: PARK_BY_ID[best.parkId]?.venueName,
-      teamName: PARK_BY_ID[best.parkId]?.teamName,
-      city: PARK_BY_ID[best.parkId]?.city,
-      state: PARK_BY_ID[best.parkId]?.state,
-      game: {
-        gamePk: best.game.gamePk,
-        date: best.game.date,
-        gameTime: best.game.gameTime,
-        dayNight: best.game.dayNight,
-        awayTeamName: best.game.awayTeamName,
-      },
-      arrival: new Date(best.arrivalTime).toISOString(),
-      gameEnd: new Date(gameEndMs).toISOString(),
-      driveFromPrev: itinerary.length === 0 ? null : {
-        miles: Math.round(best.distance),
-        driveTime: estimateDriveTime(best.distance),
-        driveTimeMs: driveHours(best.distance) * 3600 * 1000,
-        overnightStops: stops,
-      },
+    // 2. Sort survivors: most reachable remaining parks first, then lowest total step score.
+    deduped.sort((a, b) => {
+      const ra = computeReachableCount(a.currentPark, a.currentTime, a.remaining, sortedGames);
+      const rb = computeReachableCount(b.currentPark, b.currentTime, b.remaining, sortedGames);
+      if (rb !== ra) return rb - ra;
+      return (a._totalStepScore || 0) - (b._totalStepScore || 0);
     });
 
-    currentTime = departureAfterGame(gameEndMs);
-    currentPark = PARK_BY_ID[best.parkId];
+    beams = deduped.slice(0, BEAM_WIDTH);
   }
+
+  // ── Select the winning beam ────────────────────────────────────────────────
+  beams.sort((a, b) => {
+    if (a.unreachableParks.length !== b.unreachableParks.length)
+      return a.unreachableParks.length - b.unreachableParks.length;
+    return (a._totalStepScore || 0) - (b._totalStepScore || 0);
+  });
+  const winner = beams[0];
+
+  // Restore outer variables from winner so the rest of the function
+  // (same-day warning, end-city leg, return statement) works unchanged.
+  itinerary.length = 0;
+  itinerary.push(...winner.itinerary);
+  unreachableParks.length = 0;
+  unreachableParks.push(...winner.unreachableParks);
+  warnings.length = 0;
+  warnings.push(...winner.warnings);
+  totalMiles = winner.totalMiles;
+  currentPark = winner.currentPark;
+  currentTime = winner.currentTime;
 
   const gameDates = itinerary.filter(s => s.game).map(s => s.game.date);
   const uniqueDates = new Set(gameDates);
@@ -311,8 +488,8 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
     const endPark = PARK_BY_ID[endParkId];
     if (endPark) {
       const distance = haversine(currentPark.lat, currentPark.lng, endPark.lat, endPark.lng);
-      const stops = overnightStopsForDrive(currentTime, distance);
-      const arrivalMs = effectiveArrivalTime(currentTime, distance);
+      const stops = overnightStopsForDrive(currentTime, distance, currentPark.timezone);
+      const arrivalMs = effectiveArrivalTime(currentTime, distance, currentPark.timezone);
 
       if (stops > 0) {
         warnings.push(

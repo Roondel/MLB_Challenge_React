@@ -7,7 +7,7 @@ import {
   suggestScheduleRoute,
 } from '../tripPlanner';
 
-vi.mock('../data/parks', () => {
+vi.mock('../../data/parks', () => {
   const PARKS = [
     { teamId: 1, venueName: 'Coors Field',       teamName: 'Colorado Rockies',        city: 'Denver',      state: 'CO', lat: 39.756, lng: -104.994 },
     { teamId: 2, venueName: 'Chase Field',        teamName: 'Arizona Diamondbacks',    city: 'Phoenix',     state: 'AZ', lat: 33.446, lng: -112.067 },
@@ -413,5 +413,105 @@ describe('suggestScheduleRoute', () => {
     }];
     const result = suggestScheduleRoute([1, 4], 1, { 1: dayGame, 4: tightGame }, '2025-04-16');
     expect(result.unreachableParks.some(p => p.parkId === 4)).toBe(true);
+  });
+});
+
+// ─── Beam search ─────────────────────────────────────────────────────────────
+
+describe('beam search', () => {
+  // Park coordinates:
+  //   Park 1 = Denver      (39.756, -104.994)
+  //   Park 2 = Phoenix     (33.446, -112.067)  ~600 miles from Denver
+  //   Park 3 = Sacramento  (38.580, -121.500)  ~900 miles from Denver
+  //
+  // Schedule designed so greedy locks itself out of park 3:
+  //   Park 2 has a game Apr 16 noon  → wins greedily at step 1 (earlier score)
+  //   Park 3 has a game Apr 16 1pm   → reachable from Denver, but NOT from Phoenix after the noon game
+  //   Park 1 has a game Apr 18       → reachable from either
+  //
+  // Greedy: Denver→Phoenix(Apr16)→(Sacramento unreachable, game already past)→Denver(Apr18) = 1 unreachable
+  // Beam:   one beam tries Denver→Sacramento; that beam keeps Denver reachable → 0 unreachable
+
+  it('schedules all parks that greedy would miss', () => {
+    // Denver (park 1) is the start city with an Apr 16 noon game (start-locked).
+    // Park 4 (0 miles from Denver) has an Apr 16 6pm game AND an Apr 20 noon game.
+    // Phoenix (park 2, ~586mi) has only an Apr 18 noon game.
+    //
+    // Greedy: picks Park4 Apr16 6pm first (0 miles, lower score than Phoenix).
+    //   From Park4 Apr17 8am → Phoenix Apr18 noon arrives Apr18 ~1:40pm; buffer needs 10:30am → UNREACHABLE.
+    //
+    // Beam: keeps a Phoenix-first path alive. From Phoenix Apr18 3:30pm → Park4 Apr20 noon
+    //   arrives Apr20 ~9:10am; buffer needs 10:40am → REACHABLE. Wins with 0 unreachable.
+    const denverGame = [{
+      gamePk: 100, date: '2025-04-16', gameTime: iso(2025, 4, 16, 12, 0),
+      status: 'Scheduled', dayNight: 'D', awayTeamName: 'Visitor A',
+    }];
+    const phoenixGame = [{
+      gamePk: 101, date: '2025-04-18', gameTime: iso(2025, 4, 18, 12, 0),
+      status: 'Scheduled', dayNight: 'D', awayTeamName: 'Visitor B',
+    }];
+    const park4Games = [
+      { gamePk: 102, date: '2025-04-16', gameTime: iso(2025, 4, 16, 18, 0),
+        status: 'Scheduled', dayNight: 'N', awayTeamName: 'Visitor C' },
+      { gamePk: 103, date: '2025-04-20', gameTime: iso(2025, 4, 20, 12, 0),
+        status: 'Scheduled', dayNight: 'D', awayTeamName: 'Visitor D' },
+    ];
+
+    const result = suggestScheduleRoute(
+      [1, 2, 4], 1,
+      { 1: denverGame, 2: phoenixGame, 4: park4Games },
+      '2025-04-16'
+    );
+    expect(result.unreachableParks).toHaveLength(0);
+    expect(result.itinerary).toHaveLength(3);
+  });
+
+  it('simple 2-park schedule produces correct route', () => {
+    // No local optima — both beam and greedy must agree
+    const park1Games = [{
+      gamePk: 200, date: '2025-04-17', gameTime: iso(2025, 4, 17, 13, 0),
+      status: 'Scheduled', dayNight: 'D', awayTeamName: 'Visitor A',
+    }];
+    const park2Games = [{
+      gamePk: 201, date: '2025-04-20', gameTime: iso(2025, 4, 20, 13, 0),
+      status: 'Scheduled', dayNight: 'D', awayTeamName: 'Visitor B',
+    }];
+    const result = suggestScheduleRoute(
+      [1, 2], null,
+      { 1: park1Games, 2: park2Games },
+      '2025-04-16'
+    );
+    expect(result.unreachableParks).toHaveLength(0);
+    expect(result.itinerary).toHaveLength(2);
+    expect(result.itinerary[0].parkId).toBe(1);
+    expect(result.itinerary[1].parkId).toBe(2);
+  });
+
+  it('winner is the beam with most scheduled parks when beams diverge', () => {
+    // All 3 parks must be accounted for: itinerary + unreachable = 3
+    // The winning beam (most scheduled) must have more stops than unreachable parks
+    const park1Games = [{
+      gamePk: 300, date: '2025-04-18', gameTime: iso(2025, 4, 18, 12, 0),
+      status: 'Scheduled', dayNight: 'D', awayTeamName: 'A',
+    }];
+    const park2GamesEarly = [{
+      gamePk: 301, date: '2025-04-16', gameTime: iso(2025, 4, 16, 12, 0),
+      status: 'Scheduled', dayNight: 'D', awayTeamName: 'B',
+    }];
+    const park3Games = [{
+      gamePk: 302, date: '2025-04-16', gameTime: iso(2025, 4, 16, 19, 0),
+      status: 'Scheduled', dayNight: 'N', awayTeamName: 'C',
+    }];
+
+    const result = suggestScheduleRoute(
+      [1, 2, 3], null,
+      { 1: park1Games, 2: park2GamesEarly, 3: park3Games },
+      '2025-04-16'
+    );
+    const scheduled = result.itinerary.length;
+    const unreachable = result.unreachableParks.length;
+    expect(scheduled + unreachable).toBe(3);
+    // Beam with most scheduled parks wins — so scheduled >= unreachable
+    expect(scheduled).toBeGreaterThanOrEqual(unreachable);
   });
 });
