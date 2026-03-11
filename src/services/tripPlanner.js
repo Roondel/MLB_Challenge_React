@@ -55,6 +55,11 @@ function driveHours(miles) {
   return (miles * ROAD_FACTOR) / DRIVE_SPEED_MPH;
 }
 
+// Cached Intl formatters keyed by timezone — reusing instances is ~10–50× faster
+// than creating new ones in a tight beam-search loop with 20+ parks.
+const _hourFmt = {};
+const _dateFmt = {};
+
 /**
  * Returns the local clock hour (0–24 float) at `ms` in the given IANA timezone.
  * Falls back to the system clock when no timezone is provided (test compatibility).
@@ -64,9 +69,12 @@ function getLocalHour(ms, tz) {
     const d = new Date(ms);
     return d.getHours() + d.getMinutes() / 60;
   }
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
-  }).formatToParts(new Date(ms));
+  if (!_hourFmt[tz]) {
+    _hourFmt[tz] = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
+    });
+  }
+  const parts = _hourFmt[tz].formatToParts(new Date(ms));
   const h = parseInt(parts.find(p => p.type === 'hour').value, 10);
   const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
   return (h === 24 ? 0 : h) + m / 60;
@@ -85,9 +93,12 @@ function advanceToMorning(ms, tz, nextDay) {
     return next.getTime();
   }
   // Get the local calendar date at ms in tz (en-CA gives "YYYY-MM-DD")
-  const localDate = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date(ms));
+  if (!_dateFmt[tz]) {
+    _dateFmt[tz] = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+  }
+  const localDate = _dateFmt[tz].format(new Date(ms));
   let [y, mo, d] = localDate.split('-').map(Number);
   if (nextDay) {
     const nd = new Date(Date.UTC(y, mo - 1, d + 1));

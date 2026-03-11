@@ -201,6 +201,7 @@ export default function TripPlannerPage() {
             selectedParks={selectedParks}
             onTogglePark={handleTogglePark}
             onSelectAll={handleSelectAll}
+            onReset={() => handleSelectAll(false)}
             startCityParkId={PARKS.find(p => `${p.city}, ${p.state}` === searchParams?.startCity)?.teamId}
           />
           <RoutePreview routeResult={routeResult} />

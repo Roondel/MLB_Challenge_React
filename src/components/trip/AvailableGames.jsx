@@ -1,7 +1,7 @@
 import { PARK_BY_ID, getTeamLogoUrl } from '../../data/parks';
 import { formatGameDate, formatGameTime } from '../../services/mlbApi';
 
-export default function AvailableGames({ gamesByPark, selectedParks, onTogglePark, onSelectAll, startCityParkId }) {
+export default function AvailableGames({ gamesByPark, selectedParks, onTogglePark, onSelectAll, onReset, startCityParkId }) {
   const allParkIds = Object.keys(gamesByPark).map(Number);
   const parkIds = [...allParkIds].sort((a, b) => {
     if (a === startCityParkId) return -1;
@@ -25,6 +25,14 @@ export default function AvailableGames({ gamesByPark, selectedParks, onTogglePar
           Available Parks ({parkIds.length})
         </h3>
         <div className="flex items-center gap-3">
+          {selectedParks.length > 0 && (
+            <button
+              onClick={() => onReset?.()}
+              className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              Reset
+            </button>
+          )}
           <button
             onClick={() => onSelectAll?.(!allSelected)}
             className="text-xs text-accent hover:text-accent-hover transition-colors"
