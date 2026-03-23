@@ -16,8 +16,8 @@ vi.mock('../../services/api', () => ({
   AUTH_EXPIRED:   Symbol('AUTH_EXPIRED'),
   saveVisit:      (...args) => mockApiSaveVisit(...args),
   deleteVisit:    (...args) => mockApiDeleteVisit(...args),
-  // Never-resolving promises: AppProvider's initial load effects won't dispatch
-  // SET_VISITS/SET_TRIPS and accidentally wipe state added during tests.
+  // Never-resolving: prevents AppProvider's initial load effects from
+  // dispatching SET_VISITS/SET_TRIPS and wiping test state.
   fetchAllVisits: vi.fn().mockReturnValue(new Promise(() => {})),
   fetchAllTrips:  vi.fn().mockReturnValue(new Promise(() => {})),
 }));

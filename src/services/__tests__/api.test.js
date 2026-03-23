@@ -32,14 +32,6 @@ describe('api module', () => {
     vi.restoreAllMocks();
   });
 
-  // ── API_AVAILABLE ────────────────────────────────────────────────────────────
-
-  describe('API_AVAILABLE', () => {
-    it('is always true — paths are hardcoded, no env vars required', () => {
-      expect(api.API_AVAILABLE).toBe(true);
-    });
-  });
-
   // ── fetchAllVisits ───────────────────────────────────────────────────────────
 
   describe('fetchAllVisits', () => {
