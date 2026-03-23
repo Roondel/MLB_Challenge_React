@@ -7,7 +7,6 @@ import { useToast } from '../layout/Toast';
 import { fetchGameForParkOnDate, fetchWeatherForPark } from '../../services/mlbApi';
 import { PARKS } from '../../data/parks';
 import {
-  API_AVAILABLE,
   requestUploadUrl,
   putToS3,
 } from '../../services/api';
@@ -91,33 +90,18 @@ export default function CheckInModal({ park, visit, onClose }) {
     let photoKeys = form.photoKeys;
 
     if (pendingBlob) {
-      if (API_AVAILABLE) {
-        try {
-          const { uploadUrl, key } = await requestUploadUrl(
-            park.teamId,
-            'photo.jpg',
-            'image/jpeg'
-          );
-          await putToS3(uploadUrl, pendingBlob, 'image/jpeg');
-          photoKeys = [key];
-        } catch {
-          addToast('Photo upload failed — saving visit without new photo', 'error');
-          // Keep existing photoKeys on update, empty on new check-in
-          photoKeys = form.photoKeys;
-        }
-      } else {
-        // No API configured — fall back to base64 stored in photoKeys[0]
-        try {
-          const base64 = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => resolve(ev.target.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(pendingBlob);
-          });
-          photoKeys = [base64];
-        } catch {
-          photoKeys = [];
-        }
+      try {
+        const { uploadUrl, key } = await requestUploadUrl(
+          park.teamId,
+          'photo.jpg',
+          'image/jpeg'
+        );
+        await putToS3(uploadUrl, pendingBlob, 'image/jpeg');
+        photoKeys = [key];
+      } catch {
+        addToast('Photo upload failed — saving visit without new photo', 'error');
+        // Keep existing photoKeys on update, empty on new check-in
+        photoKeys = form.photoKeys;
       }
     }
 
@@ -261,7 +245,7 @@ export default function CheckInModal({ park, visit, onClose }) {
             {submitting ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 size={16} className="animate-spin" />
-                {pendingBlob && API_AVAILABLE ? 'Uploading photo...' : 'Saving...'}
+                {pendingBlob ? 'Uploading photo...' : 'Saving...'}
               </span>
             ) : (
               isEditing ? 'Save Changes' : 'Check In'

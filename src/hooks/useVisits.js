@@ -1,6 +1,5 @@
 import { useApp } from '../context/AppContext';
 import {
-  API_AVAILABLE,
   AUTH_EXPIRED,
   saveVisit as apiSaveVisit,
   deleteVisit as apiDeleteVisit,
@@ -18,27 +17,23 @@ export function useVisits() {
     // Optimistic update — UI responds instantly
     dispatch({ type: 'ADD_VISIT', payload: newVisit });
     // Sync to backend (localStorage mirror ensures data is not lost on failure)
-    if (API_AVAILABLE) {
-      try {
-        await apiSaveVisit(newVisit);
-      } catch (err) {
-        if (err === AUTH_EXPIRED) { window.location.reload(); return newVisit; }
-        console.error('Failed to save visit to API:', err);
-      }
+    try {
+      await apiSaveVisit(newVisit);
+    } catch (err) {
+      if (err === AUTH_EXPIRED) { window.location.reload(); return newVisit; }
+      console.error('Failed to save visit to API:', err);
     }
     return newVisit;
   };
 
   const updateVisit = async (visitId, updates) => {
     dispatch({ type: 'UPDATE_VISIT', payload: { visitId, ...updates } });
-    if (API_AVAILABLE) {
-      try {
-        const current = state.visits.find(v => v.visitId === visitId);
-        if (current) await apiSaveVisit({ ...current, ...updates });
-      } catch (err) {
-        if (err === AUTH_EXPIRED) { window.location.reload(); return; }
-        console.error('Failed to update visit in API:', err);
-      }
+    try {
+      const current = state.visits.find(v => v.visitId === visitId);
+      if (current) await apiSaveVisit({ ...current, ...updates });
+    } catch (err) {
+      if (err === AUTH_EXPIRED) { window.location.reload(); return; }
+      console.error('Failed to update visit in API:', err);
     }
   };
 
@@ -46,7 +41,7 @@ export function useVisits() {
     // Capture parkId before dispatching (visit is removed from state on dispatch)
     const visit = state.visits.find(v => v.visitId === visitId);
     dispatch({ type: 'DELETE_VISIT', payload: visitId });
-    if (API_AVAILABLE && visit) {
+    if (visit) {
       try {
         await apiDeleteVisit(visit.parkId);
       } catch (err) {

@@ -12,7 +12,6 @@ const mockApiSaveVisit   = vi.fn().mockResolvedValue({});
 const mockApiDeleteVisit = vi.fn().mockResolvedValue({});
 
 vi.mock('../../services/api', () => ({
-  API_AVAILABLE:  true,
   AUTH_EXPIRED:   Symbol('AUTH_EXPIRED'),
   saveVisit:      (...args) => mockApiSaveVisit(...args),
   deleteVisit:    (...args) => mockApiDeleteVisit(...args),
@@ -58,7 +57,7 @@ describe('addVisit', () => {
     expect(visit.createdAt).toBeTruthy();
   });
 
-  it('calls apiSaveVisit with the new visit when API is available', async () => {
+  it('calls apiSaveVisit with the new visit', async () => {
     const { result } = renderHook(() => useVisits(), { wrapper });
 
     await act(async () => {

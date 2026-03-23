@@ -24,7 +24,6 @@ vi.mock('../../../services/mlbApi', () => ({
 const mockRequestUploadUrl = vi.fn();
 const mockPutToS3          = vi.fn();
 vi.mock('../../../services/api', () => ({
-  API_AVAILABLE:    true,
   requestUploadUrl: (...a) => mockRequestUploadUrl(...a),
   putToS3:          (...a) => mockPutToS3(...a),
 }));

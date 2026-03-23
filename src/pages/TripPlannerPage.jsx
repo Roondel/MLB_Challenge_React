@@ -7,7 +7,6 @@ import { useVisits } from '../hooks/useVisits';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../components/layout/Toast';
 import {
-  API_AVAILABLE,
   saveTrip as apiSaveTrip,
   deleteTrip as apiDeleteTrip,
 } from '../services/api';
@@ -41,14 +40,12 @@ export default function TripPlannerPage() {
       if (!loadedTripId) return;
       const payload = { tripId: loadedTripId, stopNotes: updated };
       dispatch({ type: 'UPDATE_TRIP', payload });
-      if (API_AVAILABLE) {
-        const trip = state.tripPlans.find(t => t.tripId === loadedTripId);
-        if (trip) {
-          try {
-            await apiSaveTrip({ ...trip, stopNotes: updated });
-          } catch (err) {
-            console.error('Failed to save notes:', err);
-          }
+      const trip = state.tripPlans.find(t => t.tripId === loadedTripId);
+      if (trip) {
+        try {
+          await apiSaveTrip({ ...trip, stopNotes: updated });
+        } catch (err) {
+          console.error('Failed to save notes:', err);
         }
       }
       addToast('Notes saved', 'success');
@@ -148,12 +145,10 @@ export default function TripPlannerPage() {
     setTripName('');
     setShowSaveInput(false);
     addToast(`"${name}" saved`, 'success');
-    if (API_AVAILABLE) {
-      try {
-        await apiSaveTrip(tripPayload);
-      } catch (err) {
-        console.error('Failed to save trip to API:', err);
-      }
+    try {
+      await apiSaveTrip(tripPayload);
+    } catch (err) {
+      console.error('Failed to save trip to API:', err);
     }
   };
 
@@ -170,12 +165,10 @@ export default function TripPlannerPage() {
   const handleDeleteTrip = async (tripId) => {
     dispatch({ type: 'DELETE_TRIP', payload: tripId });
     addToast('Trip deleted', 'success');
-    if (API_AVAILABLE) {
-      try {
-        await apiDeleteTrip(tripId);
-      } catch (err) {
-        console.error('Failed to delete trip from API:', err);
-      }
+    try {
+      await apiDeleteTrip(tripId);
+    } catch (err) {
+      console.error('Failed to delete trip from API:', err);
     }
   };
 

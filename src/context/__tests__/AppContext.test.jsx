@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../services/api', async (importOriginal) => {
   const actual = await importOriginal();
   return {
-    // Pass through all real exports (including API_AVAILABLE, AUTH_EXPIRED, etc.)
+    // Pass through all real exports (AUTH_EXPIRED, helper functions, etc.)
     // so Vitest's strict named-export checking is satisfied.
     ...actual,
     // Never-resolving promises prevent SET_VISITS/SET_TRIPS from firing and

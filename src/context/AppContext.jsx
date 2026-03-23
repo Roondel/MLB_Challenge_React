@@ -1,7 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { PARKS } from '../data/parks';
 import {
-  API_AVAILABLE,
   fetchAllVisits,
   fetchAllTrips,
 } from '../services/api';
@@ -74,13 +73,12 @@ export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { isAuthenticated, loading: authLoading } = useAuth();
 
-  // Start as loaded when running without API (localStorage-only mode)
-  const [visitsLoaded, setVisitsLoaded] = useState(!API_AVAILABLE);
-  const [tripsLoaded,  setTripsLoaded]  = useState(!API_AVAILABLE);
+  const [visitsLoaded, setVisitsLoaded] = useState(false);
+  const [tripsLoaded,  setTripsLoaded]  = useState(false);
 
   // Fetch visits once auth is confirmed — guards against 401 on initial load
   useEffect(() => {
-    if (!API_AVAILABLE || authLoading || !isAuthenticated) return;
+    if (authLoading || !isAuthenticated) return;
     setVisitsLoaded(false);
     fetchAllVisits()
       .then(visits => {
@@ -92,7 +90,7 @@ export function AppProvider({ children }) {
   }, [isAuthenticated, authLoading]);
 
   useEffect(() => {
-    if (!API_AVAILABLE || authLoading || !isAuthenticated) return;
+    if (authLoading || !isAuthenticated) return;
     setTripsLoaded(false);
     fetchAllTrips()
       .then(trips => {

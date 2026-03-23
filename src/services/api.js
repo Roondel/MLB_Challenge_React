@@ -4,9 +4,6 @@ const VISITS_API = '/api/visits';
 const TRIPS_API  = '/api/trips';
 const PHOTOS_API = '/api/photos';
 
-// Always true — all API traffic routes through CloudFront at relative /api/* paths.
-export const API_AVAILABLE = true;
-
 // Sentinel thrown by apiFetch when the server returns 401.
 // Callers can catch this to trigger a re-auth flow.
 export const AUTH_EXPIRED = Symbol('AUTH_EXPIRED');
