@@ -59,26 +59,37 @@ beforeEach(() => {
 });
 
 // ── Route matrix (fetched once per mount, reused across searches/toggles) ──────
+//
+// The hook uses the real fetchDistanceLookup (only suggestScheduleRoute is
+// mocked from '../../services/tripPlanner'), so these tests exercise real
+// batching against the real 30-park PARKS data — Google's 625-element cap
+// means 30×30=900 must split into multiple getRouteMatrix calls.
 
 describe('route matrix fetch on mount', () => {
-  it('fetches the distance matrix once when the hook mounts', async () => {
+  it('batches the distance matrix fetch, with every call staying within the 625-element Google cap', async () => {
     renderHook(() => useTripPlanner());
-    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalled());
+    // Let all batches settle
+    await new Promise(resolve => setTimeout(resolve, 10));
 
-    const [origins, destinations] = mockGetRouteMatrix.mock.calls[0];
-    expect(origins.length).toBeGreaterThan(0);
-    expect(origins).toEqual(destinations);
-    expect(origins[0]).toHaveProperty('lat');
-    expect(origins[0]).toHaveProperty('lng');
+    expect(mockGetRouteMatrix.mock.calls.length).toBeGreaterThan(1);
+    for (const [origins, destinations] of mockGetRouteMatrix.mock.calls) {
+      expect(origins.length * destinations.length).toBeLessThanOrEqual(625);
+      expect(origins[0]).toHaveProperty('lat');
+      expect(origins[0]).toHaveProperty('lng');
+    }
   });
 
-  it('passes the built distance lookup into suggestScheduleRoute after a successful fetch', async () => {
-    mockGetRouteMatrix.mockResolvedValue({
-      matrix: [{ originIndex: 0, destinationIndex: 1, distanceMiles: 42, durationMinutes: 40 }],
-    });
+  it('passes the merged distance lookup into suggestScheduleRoute after a successful fetch', async () => {
+    mockGetRouteMatrix.mockImplementation(async (origins, destinations) => ({
+      matrix: origins.flatMap((_, oi) =>
+        destinations.map((_, di) => ({ originIndex: oi, destinationIndex: di, distanceMiles: 42, durationMinutes: 40 }))
+      ),
+    }));
     mockFetchHomeGamesByPark.mockResolvedValue({ 109: [] });
     const { result } = renderHook(() => useTripPlanner());
-    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalled());
+    await new Promise(resolve => setTimeout(resolve, 10));
 
     await act(async () => {
       await result.current.handleSearch({ startDate: '2025-07-01', endDate: '2025-07-10', startCity: '' });
@@ -90,13 +101,14 @@ describe('route matrix fetch on mount', () => {
     const lastCall = mockSuggestScheduleRoute.mock.calls.at(-1);
     const distanceLookup = lastCall[5];
     expect(distanceLookup).toBeInstanceOf(Map);
+    expect(distanceLookup.size).toBeGreaterThan(0);
   });
 
   it('does not crash and still calls suggestScheduleRoute when the matrix fetch fails', async () => {
     mockGetRouteMatrix.mockRejectedValue(new Error('Network error'));
     mockFetchHomeGamesByPark.mockResolvedValue({ 109: [] });
     const { result } = renderHook(() => useTripPlanner());
-    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalled());
 
     await act(async () => {
       await result.current.handleSearch({ startDate: '2025-07-01', endDate: '2025-07-10', startCity: '' });
@@ -108,23 +120,25 @@ describe('route matrix fetch on mount', () => {
     expect(mockSuggestScheduleRoute).toHaveBeenCalled();
   });
 
-  it('caches the matrix result in localStorage after a successful fetch', async () => {
-    mockGetRouteMatrix.mockResolvedValue({
-      matrix: [{ originIndex: 0, destinationIndex: 1, distanceMiles: 42, durationMinutes: 40 }],
-    });
+  it('caches the merged lookup in localStorage after a successful fetch', async () => {
+    mockGetRouteMatrix.mockImplementation(async (origins, destinations) => ({
+      matrix: origins.flatMap((_, oi) =>
+        destinations.map((_, di) => ({ originIndex: oi, destinationIndex: di, distanceMiles: 42, durationMinutes: 40 }))
+      ),
+    }));
     renderHook(() => useTripPlanner());
-    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalled());
+    await new Promise(resolve => setTimeout(resolve, 10));
 
     const cached = JSON.parse(localStorage.getItem('mlb_route_matrix_cache_v1'));
-    expect(cached.matrixResult.matrix).toEqual([
-      { originIndex: 0, destinationIndex: 1, distanceMiles: 42, durationMinutes: 40 },
-    ]);
+    expect(Array.isArray(cached.entries)).toBe(true);
+    expect(cached.entries.length).toBeGreaterThan(0);
     expect(typeof cached.cachedAt).toBe('number');
   });
 
   it('does NOT call getRouteMatrix again when a fresh cache entry already exists', async () => {
     localStorage.setItem('mlb_route_matrix_cache_v1', JSON.stringify({
-      matrixResult: { matrix: [{ originIndex: 0, destinationIndex: 1, distanceMiles: 99, durationMinutes: 90 }] },
+      entries: [['1:2', 99]],
       cachedAt: Date.now(),
     }));
 
@@ -138,12 +152,12 @@ describe('route matrix fetch on mount', () => {
   it('re-fetches when the cache entry is older than the TTL', async () => {
     const THIRTY_ONE_DAYS_MS = 31 * 24 * 60 * 60 * 1000;
     localStorage.setItem('mlb_route_matrix_cache_v1', JSON.stringify({
-      matrixResult: { matrix: [] },
+      entries: [],
       cachedAt: Date.now() - THIRTY_ONE_DAYS_MS,
     }));
 
     renderHook(() => useTripPlanner());
-    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalled());
   });
 });
 

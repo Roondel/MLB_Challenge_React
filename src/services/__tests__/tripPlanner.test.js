@@ -6,6 +6,7 @@ import {
   overnightStopsForDrive,
   suggestScheduleRoute,
   buildDistanceLookup,
+  fetchDistanceLookup,
 } from '../tripPlanner';
 
 vi.mock('../../data/parks', () => {
@@ -528,21 +529,80 @@ describe('buildDistanceLookup', () => {
         { originIndex: 1, destinationIndex: 0, distanceMiles: 500, durationMinutes: 480 },
       ],
     };
-    const lookup = buildDistanceLookup(parks, matrixResult);
+    const lookup = buildDistanceLookup(parks, parks, matrixResult);
     expect(lookup.get('1:2')).toBe(500);
     expect(lookup.get('2:1')).toBe(500);
   });
 
-  it('returns an empty lookup when the matrix result is missing or malformed', () => {
-    expect(buildDistanceLookup([], null).size).toBe(0);
-    expect(buildDistanceLookup([], {}).size).toBe(0);
-    expect(buildDistanceLookup([], undefined).size).toBe(0);
+  it('supports separate origin and destination park arrays (for batched sub-matrices)', () => {
+    const originParks = [{ teamId: 10 }]; // e.g. one batch of origins
+    const destParks = [{ teamId: 1 }, { teamId: 2 }]; // full destination set
+    const matrixResult = {
+      matrix: [
+        { originIndex: 0, destinationIndex: 0, distanceMiles: 111, durationMinutes: 100 },
+        { originIndex: 0, destinationIndex: 1, distanceMiles: 222, durationMinutes: 200 },
+      ],
+    };
+    const lookup = buildDistanceLookup(originParks, destParks, matrixResult);
+    expect(lookup.get('10:1')).toBe(111);
+    expect(lookup.get('10:2')).toBe(222);
   });
 
-  it('skips entries whose index is out of range for the parks array', () => {
+  it('returns an empty lookup when the matrix result is missing or malformed', () => {
+    expect(buildDistanceLookup([], [], null).size).toBe(0);
+    expect(buildDistanceLookup([], [], {}).size).toBe(0);
+    expect(buildDistanceLookup([], [], undefined).size).toBe(0);
+  });
+
+  it('skips entries whose index is out of range for either park array', () => {
     const parks = [{ teamId: 1 }];
     const matrixResult = { matrix: [{ originIndex: 0, destinationIndex: 5, distanceMiles: 100, durationMinutes: 90 }] };
-    expect(buildDistanceLookup(parks, matrixResult).size).toBe(0);
+    expect(buildDistanceLookup(parks, parks, matrixResult).size).toBe(0);
+  });
+});
+
+// ─── fetchDistanceLookup ──────────────────────────────────────────────────────
+
+describe('fetchDistanceLookup', () => {
+  // Google's computeRouteMatrix caps origins × destinations at 625. With 30
+  // parks as both origins and destinations (900 total), a single call isn't
+  // possible — this must batch across multiple calls, none exceeding 625.
+  it('splits requests into batches that each stay within the 625-element Google cap', async () => {
+    const parks = Array.from({ length: 30 }, (_, i) => ({ teamId: i + 1, lat: i, lng: i }));
+    const calls = [];
+    const fakeGetRouteMatrix = async (origins, destinations) => {
+      calls.push({ originsLength: origins.length, destinationsLength: destinations.length });
+      const matrix = origins.flatMap((_, oi) =>
+        destinations.map((_, di) => ({ originIndex: oi, destinationIndex: di, distanceMiles: 1, durationMinutes: 1 }))
+      );
+      return { matrix };
+    };
+
+    await fetchDistanceLookup(parks, fakeGetRouteMatrix);
+
+    expect(calls.length).toBeGreaterThan(1);
+    for (const call of calls) {
+      expect(call.originsLength * call.destinationsLength).toBeLessThanOrEqual(625);
+    }
+  });
+
+  it('merges results from all batches into one complete lookup covering every pair', async () => {
+    const parks = Array.from({ length: 30 }, (_, i) => ({ teamId: i + 1, lat: i, lng: i }));
+    const fakeGetRouteMatrix = async (origins, destinations) => {
+      const matrix = origins.flatMap((_, oi) =>
+        destinations.map((_, di) => ({ originIndex: oi, destinationIndex: di, distanceMiles: 7, durationMinutes: 7 }))
+      );
+      return { matrix };
+    };
+
+    const lookup = await fetchDistanceLookup(parks, fakeGetRouteMatrix);
+
+    // Every one of the 30×30=900 pairs should be present, from whichever batch covered it.
+    expect(lookup.size).toBe(900);
+    expect(lookup.get('1:1')).toBe(7);
+    expect(lookup.get('1:30')).toBe(7);
+    expect(lookup.get('30:1')).toBe(7);
+    expect(lookup.get('30:30')).toBe(7);
   });
 });
 

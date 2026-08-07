@@ -58,16 +58,42 @@ function driveHours(miles) {
 /**
  * Converts a getRouteMatrix() result into a Map keyed by "originTeamId:destTeamId" → distanceMiles,
  * so the beam search can look up real drive distances instead of computing haversine on the fly.
- * `parks` must be the same array (same order) passed as both origins and destinations to getRouteMatrix.
+ * originParks/destParks must be in the same order as the origins/destinations arrays passed to
+ * getRouteMatrix (they may be different arrays — e.g. a batch of origins against the full park list).
  */
-export function buildDistanceLookup(parks, matrixResult) {
+export function buildDistanceLookup(originParks, destParks, matrixResult) {
   const lookup = new Map();
   if (!matrixResult?.matrix) return lookup;
   for (const entry of matrixResult.matrix) {
-    const originPark = parks[entry.originIndex];
-    const destPark = parks[entry.destinationIndex];
+    const originPark = originParks[entry.originIndex];
+    const destPark = destParks[entry.destinationIndex];
     if (!originPark || !destPark) continue;
     lookup.set(`${originPark.teamId}:${destPark.teamId}`, entry.distanceMiles);
+  }
+  return lookup;
+}
+
+// Google's computeRouteMatrix hard limit: origins × destinations must be <= 625.
+const MAX_MATRIX_ELEMENTS = 625;
+
+/**
+ * Fetches the full drive-distance lookup between every park and every other
+ * park, batching requests to stay within Google's 625-element-per-call cap
+ * (e.g. 30 parks × 30 parks = 900 total, which alone exceeds the cap and must
+ * be split into multiple calls). `getRouteMatrixFn` is injected so this stays
+ * testable without depending on the real maps service.
+ */
+export async function fetchDistanceLookup(parks, getRouteMatrixFn) {
+  const coords = parks.map(p => ({ lat: p.lat, lng: p.lng }));
+  const batchSize = Math.max(1, Math.floor(MAX_MATRIX_ELEMENTS / parks.length));
+
+  const lookup = new Map();
+  for (let i = 0; i < parks.length; i += batchSize) {
+    const originBatch = parks.slice(i, i + batchSize);
+    const originCoords = coords.slice(i, i + batchSize);
+    const result = await getRouteMatrixFn(originCoords, coords);
+    const batchLookup = buildDistanceLookup(originBatch, parks, result);
+    for (const [key, value] of batchLookup) lookup.set(key, value);
   }
   return lookup;
 }

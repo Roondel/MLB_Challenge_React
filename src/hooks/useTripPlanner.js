@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { PARKS } from '../data/parks';
 import { fetchHomeGamesByPark } from '../services/mlbApi';
-import { suggestScheduleRoute, buildDistanceLookup } from '../services/tripPlanner';
+import { suggestScheduleRoute, fetchDistanceLookup } from '../services/tripPlanner';
 import { getRouteMatrix } from '../services/maps';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../components/layout/Toast';
@@ -13,21 +13,24 @@ import {
 const DISTANCE_CACHE_KEY = 'mlb_route_matrix_cache_v1';
 const DISTANCE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — park coordinates rarely change
 
-function loadCachedMatrixResult() {
+function loadCachedLookup() {
   try {
     const raw = localStorage.getItem(DISTANCE_CACHE_KEY);
     if (!raw) return null;
-    const { matrixResult, cachedAt } = JSON.parse(raw);
+    const { entries, cachedAt } = JSON.parse(raw);
     if (Date.now() - cachedAt > DISTANCE_CACHE_TTL_MS) return null;
-    return matrixResult;
+    return new Map(entries);
   } catch {
     return null;
   }
 }
 
-function saveCachedMatrixResult(matrixResult) {
+function saveCachedLookup(lookup) {
   try {
-    localStorage.setItem(DISTANCE_CACHE_KEY, JSON.stringify({ matrixResult, cachedAt: Date.now() }));
+    localStorage.setItem(DISTANCE_CACHE_KEY, JSON.stringify({
+      entries: Array.from(lookup.entries()),
+      cachedAt: Date.now(),
+    }));
   } catch {
     // localStorage unavailable/full — non-fatal, just skip caching
   }
@@ -54,17 +57,18 @@ export function useTripPlanner() {
   // localStorage — park coordinates never change, so re-fetching per page
   // mount (each costing 900 elements against the Lambda's daily quota) would
   // be pure waste. A 30-day TTL is a pragmatic safety net, not a real need.
+  // fetchDistanceLookup batches internally (Google caps origins × destinations
+  // at 625, so the full 30×30 matrix needs multiple calls).
   useEffect(() => {
-    const cached = loadCachedMatrixResult();
+    const cached = loadCachedLookup();
     if (cached) {
-      setDistanceLookup(buildDistanceLookup(PARKS, cached));
+      setDistanceLookup(cached);
       return;
     }
-    const coords = PARKS.map(p => ({ lat: p.lat, lng: p.lng }));
-    getRouteMatrix(coords, coords)
-      .then(matrixResult => {
-        setDistanceLookup(buildDistanceLookup(PARKS, matrixResult));
-        saveCachedMatrixResult(matrixResult);
+    fetchDistanceLookup(PARKS, getRouteMatrix)
+      .then(lookup => {
+        setDistanceLookup(lookup);
+        saveCachedLookup(lookup);
       })
       .catch(err => {
         console.error('Failed to fetch route matrix, falling back to estimated distances:', err);
