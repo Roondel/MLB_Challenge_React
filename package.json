@@ -15,17 +15,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "-": "^0.0.1",
     "aws-amplify": "^6.16.2",
-    "hmr": "^0.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.1.0",
-    "recharts": "^2.15.0",
-    "save-dev": "^0.0.1-security"
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1000.0",
