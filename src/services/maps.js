@@ -12,4 +12,4 @@ if (useRealMaps) {
   mapsModule = await import('./mapsApiStub.js');
 }
 
-export const { getDrivingRoute } = mapsModule;
+export const { getRouteMatrix } = mapsModule;

@@ -55,6 +55,31 @@ function driveHours(miles) {
   return (miles * ROAD_FACTOR) / DRIVE_SPEED_MPH;
 }
 
+/**
+ * Converts a getRouteMatrix() result into a Map keyed by "originTeamId:destTeamId" → distanceMiles,
+ * so the beam search can look up real drive distances instead of computing haversine on the fly.
+ * `parks` must be the same array (same order) passed as both origins and destinations to getRouteMatrix.
+ */
+export function buildDistanceLookup(parks, matrixResult) {
+  const lookup = new Map();
+  if (!matrixResult?.matrix) return lookup;
+  for (const entry of matrixResult.matrix) {
+    const originPark = parks[entry.originIndex];
+    const destPark = parks[entry.destinationIndex];
+    if (!originPark || !destPark) continue;
+    lookup.set(`${originPark.teamId}:${destPark.teamId}`, entry.distanceMiles);
+  }
+  return lookup;
+}
+
+// Looks up a real drive distance from distanceLookup; falls back to haversine
+// when the lookup is absent or doesn't have this specific pair.
+function resolveDistance(distanceLookup, fromPark, toPark) {
+  const looked = distanceLookup?.get(`${fromPark.teamId}:${toPark.teamId}`);
+  if (looked != null) return looked;
+  return haversine(fromPark.lat, fromPark.lng, toPark.lat, toPark.lng);
+}
+
 // Cached Intl formatters keyed by timezone — reusing instances is ~10–50× faster
 // than creating new ones in a tight beam-search loop with 20+ parks.
 const _hourFmt = {};
@@ -180,12 +205,12 @@ export function overnightStopsForDrive(departureMs, miles, timezone) {
  * Count how many parks in `remainingSet` have at least one reachable game
  * from `fromPark` after `fromTime`. Used for beam pruning.
  */
-function computeReachableCount(fromPark, fromTime, remainingSet, sortedGames) {
+function computeReachableCount(fromPark, fromTime, remainingSet, sortedGames, distanceLookup) {
   let count = 0;
   for (const parkId of remainingSet) {
     const targetPark = PARK_BY_ID[parkId];
     if (!targetPark) continue;
-    const distance = haversine(fromPark.lat, fromPark.lng, targetPark.lat, targetPark.lng);
+    const distance = resolveDistance(distanceLookup, fromPark, targetPark);
     const arrivalTime = effectiveArrivalTime(fromTime, distance, fromPark.timezone);
     const earliestGameStart = arrivalTime + BUFFER_BEFORE_MS;
     const game = sortedGames[parkId]?.find(g =>
@@ -196,7 +221,7 @@ function computeReachableCount(fromPark, fromTime, remainingSet, sortedGames) {
   return count;
 }
 
-export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, tripStartDate, endParkId) {
+export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, tripStartDate, endParkId, distanceLookup) {
   if (selectedParkIds.length === 0) {
     return { route: [], totalMiles: 0, itinerary: [], unreachableParks: [], warnings: [] };
   }
@@ -319,10 +344,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
         // When there is no fixed origin (null startParkId, no start-lock),
         // treat the first stop as 0 drive distance — the user travels to
         // whichever first game they choose.
-        const distance = beam._noOrigin ? 0 : haversine(
-          beam.currentPark.lat, beam.currentPark.lng,
-          targetPark.lat, targetPark.lng
-        );
+        const distance = beam._noOrigin ? 0 : resolveDistance(distanceLookup, beam.currentPark, targetPark);
         const driveTz = beam.currentPark?.timezone;
         const arrivalTime = effectiveArrivalTime(beam.currentTime, distance, driveTz);
         const earliestGameStart = arrivalTime + BUFFER_BEFORE_MS;
@@ -441,10 +463,10 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
         const existingIdx = seen.get(key);
         const existing = deduped[existingIdx];
         const existingReachable = computeReachableCount(
-          existing.currentPark, existing.currentTime, existing.remaining, sortedGames
+          existing.currentPark, existing.currentTime, existing.remaining, sortedGames, distanceLookup
         );
         const newReachable = computeReachableCount(
-          beam.currentPark, beam.currentTime, beam.remaining, sortedGames
+          beam.currentPark, beam.currentTime, beam.remaining, sortedGames, distanceLookup
         );
         if (newReachable > existingReachable ||
             (newReachable === existingReachable && (beam._totalStepScore || 0) < (existing._totalStepScore || 0))) {
@@ -455,8 +477,8 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
 
     // 2. Sort survivors: most reachable remaining parks first, then lowest total step score.
     deduped.sort((a, b) => {
-      const ra = computeReachableCount(a.currentPark, a.currentTime, a.remaining, sortedGames);
-      const rb = computeReachableCount(b.currentPark, b.currentTime, b.remaining, sortedGames);
+      const ra = computeReachableCount(a.currentPark, a.currentTime, a.remaining, sortedGames, distanceLookup);
+      const rb = computeReachableCount(b.currentPark, b.currentTime, b.remaining, sortedGames, distanceLookup);
       if (rb !== ra) return rb - ra;
       return (a._totalStepScore || 0) - (b._totalStepScore || 0);
     });
@@ -498,7 +520,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
   if (endParkId && itinerary.length > 0 && itinerary[itinerary.length - 1].parkId !== endParkId) {
     const endPark = PARK_BY_ID[endParkId];
     if (endPark) {
-      const distance = haversine(currentPark.lat, currentPark.lng, endPark.lat, endPark.lng);
+      const distance = resolveDistance(distanceLookup, currentPark, endPark);
       const stops = overnightStopsForDrive(currentTime, distance, currentPark.timezone);
       const arrivalMs = effectiveArrivalTime(currentTime, distance, currentPark.timezone);
 

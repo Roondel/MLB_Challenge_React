@@ -37,7 +37,7 @@ jobs:
           cat > .env.dev << EOF
           VITE_COGNITO_USER_POOL_ID=${{ secrets.DEV_COGNITO_USER_POOL_ID }}
           VITE_COGNITO_CLIENT_ID=${{ secrets.DEV_COGNITO_CLIENT_ID }}
-          VITE_USE_REAL_MAPS=false
+          VITE_USE_REAL_MAPS=${{ vars.VITE_USE_REAL_MAPS }}
           E2E_BASE_URL=${{ secrets.E2E_BASE_URL }}
           E2E_TEST_EMAIL=${{ secrets.E2E_TEST_EMAIL }}
           E2E_TEST_PASSWORD=${{ secrets.E2E_TEST_PASSWORD }}

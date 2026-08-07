@@ -5,6 +5,7 @@ import {
   effectiveArrivalTime,
   overnightStopsForDrive,
   suggestScheduleRoute,
+  buildDistanceLookup,
 } from '../tripPlanner';
 
 vi.mock('../../data/parks', () => {
@@ -513,5 +514,67 @@ describe('beam search', () => {
     expect(scheduled + unreachable).toBe(3);
     // Beam with most scheduled parks wins — so scheduled >= unreachable
     expect(scheduled).toBeGreaterThanOrEqual(unreachable);
+  });
+});
+
+// ─── buildDistanceLookup ──────────────────────────────────────────────────────
+
+describe('buildDistanceLookup', () => {
+  it('builds a lookup keyed by "originId:destId" from a matrix result', () => {
+    const parks = [{ teamId: 1 }, { teamId: 2 }];
+    const matrixResult = {
+      matrix: [
+        { originIndex: 0, destinationIndex: 1, distanceMiles: 500, durationMinutes: 480 },
+        { originIndex: 1, destinationIndex: 0, distanceMiles: 500, durationMinutes: 480 },
+      ],
+    };
+    const lookup = buildDistanceLookup(parks, matrixResult);
+    expect(lookup.get('1:2')).toBe(500);
+    expect(lookup.get('2:1')).toBe(500);
+  });
+
+  it('returns an empty lookup when the matrix result is missing or malformed', () => {
+    expect(buildDistanceLookup([], null).size).toBe(0);
+    expect(buildDistanceLookup([], {}).size).toBe(0);
+    expect(buildDistanceLookup([], undefined).size).toBe(0);
+  });
+
+  it('skips entries whose index is out of range for the parks array', () => {
+    const parks = [{ teamId: 1 }];
+    const matrixResult = { matrix: [{ originIndex: 0, destinationIndex: 5, distanceMiles: 100, durationMinutes: 90 }] };
+    expect(buildDistanceLookup(parks, matrixResult).size).toBe(0);
+  });
+});
+
+// ─── suggestScheduleRoute with a distanceLookup override ─────────────────────
+
+describe('suggestScheduleRoute with distanceLookup', () => {
+  it('uses the looked-up distance instead of haversine when a lookup is provided', () => {
+    // Haversine Denver→Phoenix is ~600mi (see fixture comment above); the lookup
+    // deliberately overrides it with a very different value to prove it's used.
+    const distanceLookup = new Map([['1:2', 42]]);
+    const result = suggestScheduleRoute(
+      [1, 2], 1,
+      { 1: denverGames, 2: phoenixGames },
+      '2025-04-16',
+      null,
+      distanceLookup
+    );
+    const secondStop = result.itinerary[1];
+    expect(secondStop.driveFromPrev.miles).toBe(42);
+  });
+
+  it('falls back to haversine for pairs missing from the lookup', () => {
+    const distanceLookup = new Map(); // empty — no entry for 1:2
+    const result = suggestScheduleRoute(
+      [1, 2], 1,
+      { 1: denverGames, 2: phoenixGames },
+      '2025-04-16',
+      null,
+      distanceLookup
+    );
+    const secondStop = result.itinerary[1];
+    // Real haversine distance for this fixture is ~600mi (per comment above)
+    expect(secondStop.driveFromPrev.miles).toBeGreaterThan(500);
   });
 });

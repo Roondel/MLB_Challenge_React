@@ -1,13 +1,37 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { PARKS } from '../data/parks';
 import { fetchHomeGamesByPark } from '../services/mlbApi';
-import { suggestScheduleRoute } from '../services/tripPlanner';
+import { suggestScheduleRoute, buildDistanceLookup } from '../services/tripPlanner';
+import { getRouteMatrix } from '../services/maps';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../components/layout/Toast';
 import {
   saveTrip as apiSaveTrip,
   deleteTrip as apiDeleteTrip,
 } from '../services/api';
+
+const DISTANCE_CACHE_KEY = 'mlb_route_matrix_cache_v1';
+const DISTANCE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — park coordinates rarely change
+
+function loadCachedMatrixResult() {
+  try {
+    const raw = localStorage.getItem(DISTANCE_CACHE_KEY);
+    if (!raw) return null;
+    const { matrixResult, cachedAt } = JSON.parse(raw);
+    if (Date.now() - cachedAt > DISTANCE_CACHE_TTL_MS) return null;
+    return matrixResult;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedMatrixResult(matrixResult) {
+  try {
+    localStorage.setItem(DISTANCE_CACHE_KEY, JSON.stringify({ matrixResult, cachedAt: Date.now() }));
+  } catch {
+    // localStorage unavailable/full — non-fatal, just skip caching
+  }
+}
 
 export function useTripPlanner() {
   const { state, dispatch } = useApp();
@@ -23,14 +47,37 @@ export function useTripPlanner() {
   const [endParkId, setEndParkId] = useState(null);
   const [stopNotes, setStopNotes] = useState({});
   const [loadedTripId, setLoadedTripId] = useState(null);
+  const [distanceLookup, setDistanceLookup] = useState(null);
   const notesSaveTimerRef = useRef(null);
+
+  // Fetch the full 30-park drive-distance matrix once and cache it in
+  // localStorage — park coordinates never change, so re-fetching per page
+  // mount (each costing 900 elements against the Lambda's daily quota) would
+  // be pure waste. A 30-day TTL is a pragmatic safety net, not a real need.
+  useEffect(() => {
+    const cached = loadCachedMatrixResult();
+    if (cached) {
+      setDistanceLookup(buildDistanceLookup(PARKS, cached));
+      return;
+    }
+    const coords = PARKS.map(p => ({ lat: p.lat, lng: p.lng }));
+    getRouteMatrix(coords, coords)
+      .then(matrixResult => {
+        setDistanceLookup(buildDistanceLookup(PARKS, matrixResult));
+        saveCachedMatrixResult(matrixResult);
+      })
+      .catch(err => {
+        console.error('Failed to fetch route matrix, falling back to estimated distances:', err);
+        setDistanceLookup(null);
+      });
+  }, []);
 
   const recomputeRoute = (parks, endId) => {
     if (parks.length === 0) { setRouteResult(null); return; }
     const startParkId = searchParams?.startCity
       ? PARKS.find(p => `${p.city}, ${p.state}` === searchParams.startCity)?.teamId
       : null;
-    setRouteResult(suggestScheduleRoute(parks, startParkId, gamesByPark, searchParams.startDate, endId));
+    setRouteResult(suggestScheduleRoute(parks, startParkId, gamesByPark, searchParams.startDate, endId, distanceLookup));
   };
 
   const handleSearch = async ({ startDate, endDate, startCity }, { preserveTrip = false } = {}) => {
@@ -61,7 +108,7 @@ export function useTripPlanner() {
         if (startPark && filtered[startPark.teamId]) {
           const initial = [startPark.teamId];
           setSelectedParks(initial);
-          setRouteResult(suggestScheduleRoute(initial, startPark.teamId, filtered, startDate, endParkId));
+          setRouteResult(suggestScheduleRoute(initial, startPark.teamId, filtered, startDate, endParkId, distanceLookup));
         }
       }
     } catch (err) {

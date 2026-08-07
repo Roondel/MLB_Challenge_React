@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { useNearbyNotifier } from './useNearbyNotifier';
-import * as notifications from '../services/notifications';
+import { useNearbyNotifier } from '../useNearbyNotifier';
+import * as notifications from '../../services/notifications';
 
-vi.mock('../services/notifications', () => ({
+vi.mock('../../services/notifications', () => ({
   registerServiceWorker: vi.fn().mockResolvedValue({ showNotification: vi.fn() }),
   requestNotificationPermission: vi.fn().mockResolvedValue('granted'),
   isIosSafari: vi.fn().mockReturnValue(false),

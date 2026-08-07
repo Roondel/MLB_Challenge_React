@@ -10,7 +10,7 @@ export const AUTH_EXPIRED = Symbol('AUTH_EXPIRED');
 
 // ── Shared fetch helper ──────────────────────────────────────────────────────
 
-async function apiFetch(url, options = {}) {
+export async function apiFetch(url, options = {}) {
   // Inject Cognito ID token when available
   let authHeader = {};
   if (COGNITO_CONFIGURED) {

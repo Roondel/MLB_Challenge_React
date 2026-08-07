@@ -3,12 +3,14 @@ import { createTrip, deleteTrip } from '../helpers/api-client.js';
 import { getTripFromDynamo, waitForTripDeletion, waitForTripStopNote } from '../helpers/aws-client.js';
 import { SEED_TRIP } from '../helpers/test-data.js';
 import { signInViaUI } from '../helpers/auth-helper.js';
+import { mockRouteMatrixApi } from '../helpers/mock-route-api.js';
 
 const TRIP_ID = 'e2e-test-trip-001';
 
 test.describe.serial('Trips — save, load, delete', () => {
   test.beforeEach(async ({ page }) => {
     await deleteTrip(TRIP_ID).catch(() => {});
+    await mockRouteMatrixApi(page);
     await signInViaUI(page);
   });
 

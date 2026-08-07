@@ -1,10 +1,15 @@
 import { test, expect } from '@playwright/test';
+import { mockRouteMatrixApi } from '../helpers/mock-route-api.js';
 
-// These tests validate the Google Maps stub behaviour.
+// These tests validate that the client never talks to Google directly.
 // They do NOT require the domain to be live — they run against E2E_BASE_URL.
-// They verify no real Google Maps API calls are made when VITE_USE_REAL_MAPS=false.
+// They verify no real Google Maps API calls are made from the browser (the
+// app is designed so Google is only ever called server-side, from the
+// mlb-route Lambda — see CLAUDE.md). /api/route itself is mocked here too,
+// regardless of the deployed VITE_USE_REAL_MAPS value, so this suite never
+// spends real Google Maps quota through the Lambda either.
 
-test.describe('Google Maps stub (VITE_USE_REAL_MAPS=false)', () => {
+test.describe('Google Maps client-side isolation', () => {
   let googleMapsRequests = [];
 
   test.beforeEach(async ({ page }) => {
@@ -16,6 +21,8 @@ test.describe('Google Maps stub (VITE_USE_REAL_MAPS=false)', () => {
         googleMapsRequests.push(request.url());
       }
     });
+
+    await mockRouteMatrixApi(page);
 
     // Sign in before navigating to trip planner
     const { signInViaUI } = await import('../helpers/auth-helper.js');
