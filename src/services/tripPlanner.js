@@ -91,9 +91,14 @@ export async function fetchDistanceLookup(parks, getRouteMatrixFn) {
   for (let i = 0; i < parks.length; i += batchSize) {
     const originBatch = parks.slice(i, i + batchSize);
     const originCoords = coords.slice(i, i + batchSize);
-    const result = await getRouteMatrixFn(originCoords, coords);
-    const batchLookup = buildDistanceLookup(originBatch, parks, result);
-    for (const [key, value] of batchLookup) lookup.set(key, value);
+    try {
+      const result = await getRouteMatrixFn(originCoords, coords);
+      const batchLookup = buildDistanceLookup(originBatch, parks, result);
+      for (const [key, value] of batchLookup) lookup.set(key, value);
+    } catch (err) {
+      console.error('fetchDistanceLookup: batch failed, returning partial lookup', err);
+      break;
+    }
   }
   return lookup;
 }

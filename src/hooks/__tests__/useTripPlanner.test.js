@@ -136,6 +136,24 @@ describe('route matrix fetch on mount', () => {
     expect(typeof cached.cachedAt).toBe('number');
   });
 
+  it('does not cache the lookup in localStorage when the fetch only partially succeeded', async () => {
+    let callCount = 0;
+    mockGetRouteMatrix.mockImplementation(async (origins, destinations) => {
+      callCount += 1;
+      if (callCount === 2) throw new Error('quota exceeded');
+      return {
+        matrix: origins.flatMap((_, oi) =>
+          destinations.map((_, di) => ({ originIndex: oi, destinationIndex: di, distanceMiles: 42, durationMinutes: 40 }))
+        ),
+      };
+    });
+    renderHook(() => useTripPlanner());
+    await waitFor(() => expect(mockGetRouteMatrix).toHaveBeenCalledTimes(2));
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(localStorage.getItem('mlb_route_matrix_cache_v1')).toBeNull();
+  });
+
   it('does NOT call getRouteMatrix again when a fresh cache entry already exists', async () => {
     localStorage.setItem('mlb_route_matrix_cache_v1', JSON.stringify({
       entries: [['1:2', 99]],

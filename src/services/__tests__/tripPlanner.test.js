@@ -604,6 +604,26 @@ describe('fetchDistanceLookup', () => {
     expect(lookup.get('30:1')).toBe(7);
     expect(lookup.get('30:30')).toBe(7);
   });
+
+  it('returns the partial lookup built so far when a later batch fails', async () => {
+    const parks = Array.from({ length: 30 }, (_, i) => ({ teamId: i + 1, lat: i, lng: i }));
+    let callCount = 0;
+    const fakeGetRouteMatrix = async (origins, destinations) => {
+      callCount += 1;
+      if (callCount === 2) throw new Error('quota exceeded');
+      const matrix = origins.flatMap((_, oi) =>
+        destinations.map((_, di) => ({ originIndex: oi, destinationIndex: di, distanceMiles: 7, durationMinutes: 7 }))
+      );
+      return { matrix };
+    };
+
+    const lookup = await fetchDistanceLookup(parks, fakeGetRouteMatrix);
+
+    // First batch (20 origins x 30 destinations = 600 pairs) succeeded; second
+    // batch (10 x 30 = 300 pairs) failed and was not retried.
+    expect(lookup.size).toBe(600);
+    expect(callCount).toBe(2);
+  });
 });
 
 // ─── suggestScheduleRoute with a distanceLookup override ─────────────────────

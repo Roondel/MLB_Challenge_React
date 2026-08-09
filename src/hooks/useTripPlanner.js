@@ -68,7 +68,9 @@ export function useTripPlanner() {
     fetchDistanceLookup(PARKS, getRouteMatrix)
       .then(lookup => {
         setDistanceLookup(lookup);
-        saveCachedLookup(lookup);
+        if (lookup.size === PARKS.length * PARKS.length) {
+          saveCachedLookup(lookup);
+        }
       })
       .catch(err => {
         console.error('Failed to fetch route matrix, falling back to estimated distances:', err);
