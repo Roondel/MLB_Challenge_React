@@ -106,6 +106,17 @@ function resolveDistance(distanceLookup, fromPark, toPark) {
   return haversine(fromPark.lat, fromPark.lng, toPark.lat, toPark.lng);
 }
 
+// Miles to show the user for a leg. Real Google distances (from the lookup)
+// are already road-accurate. The haversine fallback is straight-line, but
+// the drive time shown alongside it (driveHours/estimateDriveTime) already
+// applies ROAD_FACTOR — so the fallback's displayed miles need the same
+// factor applied, or the two numbers shown together won't agree.
+function displayMiles(distanceLookup, fromPark, toPark, distance) {
+  if (!fromPark || !toPark) return distance;
+  const isLookedUp = distanceLookup?.has(`${fromPark.teamId}:${toPark.teamId}`);
+  return isLookedUp ? distance : distance * ROAD_FACTOR;
+}
+
 // Cached Intl formatters keyed by timezone — reusing instances is ~10–50× faster
 // than creating new ones in a tight beam-search loop with 20+ parks.
 const _hourFmt = {};
@@ -371,6 +382,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
         // treat the first stop as 0 drive distance — the user travels to
         // whichever first game they choose.
         const distance = beam._noOrigin ? 0 : resolveDistance(distanceLookup, beam.currentPark, targetPark);
+        const legMiles = displayMiles(distanceLookup, beam.currentPark, targetPark, distance);
         const driveTz = beam.currentPark?.timezone;
         const arrivalTime = effectiveArrivalTime(beam.currentTime, distance, driveTz);
         const earliestGameStart = arrivalTime + BUFFER_BEFORE_MS;
@@ -415,7 +427,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
             arrival: new Date(arrivalTime).toISOString(),
             gameEnd: new Date(gameEndMs).toISOString(),
             driveFromPrev: beam.itinerary.length === 0 ? null : {
-              miles: Math.round(distance),
+              miles: Math.round(legMiles),
               driveTime: estimateDriveTime(distance),
               driveTimeMs: driveHours(distance) * 3600 * 1000,
               overnightStops: stops,
@@ -433,7 +445,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
           itinerary: newItinerary,
           unreachableParks: beam.unreachableParks,
           warnings: newWarnings,
-          totalMiles: beam.totalMiles + distance,
+          totalMiles: beam.totalMiles + legMiles,
           score: beam.score + gameStartMs,
           _stepScore: stepScore,
           _totalStepScore: (beam._totalStepScore || 0) + stepScore,
@@ -547,6 +559,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
     const endPark = PARK_BY_ID[endParkId];
     if (endPark) {
       const distance = resolveDistance(distanceLookup, currentPark, endPark);
+      const legMiles = displayMiles(distanceLookup, currentPark, endPark, distance);
       const stops = overnightStopsForDrive(currentTime, distance, currentPark.timezone);
       const arrivalMs = effectiveArrivalTime(currentTime, distance, currentPark.timezone);
 
@@ -556,7 +569,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
         );
       }
 
-      totalMiles += distance;
+      totalMiles += legMiles;
       itinerary.push({
         parkId: endParkId,
         parkName: endPark.venueName,
@@ -567,7 +580,7 @@ export function suggestScheduleRoute(selectedParkIds, startParkId, gamesByPark, 
         arrival: new Date(arrivalMs).toISOString(),
         gameEnd: null,
         driveFromPrev: {
-          miles: Math.round(distance),
+          miles: Math.round(legMiles),
           driveTime: estimateDriveTime(distance),
           driveTimeMs: driveHours(distance) * 3_600_000,
           overnightStops: stops,

@@ -637,4 +637,22 @@ describe('suggestScheduleRoute with distanceLookup', () => {
     // Real haversine distance for this fixture is ~600mi (per comment above)
     expect(secondStop.driveFromPrev.miles).toBeGreaterThan(500);
   });
+
+  it('applies ROAD_FACTOR to fallback miles so they agree with the displayed drive time', () => {
+    const distanceLookup = new Map(); // empty — forces haversine fallback for 1:2
+    const result = suggestScheduleRoute(
+      [1, 2], 1,
+      { 1: denverGames, 2: phoenixGames },
+      '2025-04-16',
+      null,
+      distanceLookup
+    );
+    const leg = result.itinerary[1].driveFromPrev;
+    // driveTimeMs is derived from distance * ROAD_FACTOR / 60mph. If the
+    // displayed miles carry the same ROAD_FACTOR adjustment, dividing miles
+    // by 60mph should reconstruct (approximately) the same drive time.
+    const impliedHours = leg.miles / 60;
+    const actualHours = leg.driveTimeMs / 3_600_000;
+    expect(impliedHours).toBeCloseTo(actualHours, 1);
+  });
 });
