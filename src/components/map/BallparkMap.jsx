@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { Link } from 'react-router-dom';
 import L from 'leaflet';
+import { leafletLayer } from 'protomaps-leaflet';
 import { useApp } from '../../context/AppContext';
 import { useVisits } from '../../hooks/useVisits';
 import { PARKS } from '../../data/parks';
 
-const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const TILE_ATTRIBUTION = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>';
+// Self-hosted basemap: a single Protomaps file in the hosting bucket, served by
+// our own CloudFront. No third-party tile provider, no API key.
+// The file is uploaded once per environment and deploy-app.sh never touches it
+// (see the tiles/ exclude there). For local dev, copy it into public/tiles/.
+const BASEMAP_URL = '/tiles/basemap.pmtiles';
+const BASEMAP_ATTRIBUTION = '<a href="https://protomaps.com">Protomaps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+// Highest zoom level baked into the basemap file. Leaflet can still zoom in
+// further; the map just scales up the most detailed data it has.
+const BASEMAP_MAX_DATA_ZOOM = 10;
 
 // Bounds that contain all 30 parks (with padding)
 const ALL_PARKS_BOUNDS = L.latLngBounds(
@@ -32,6 +41,28 @@ function FitBoundsOnMount() {
   return null;
 }
 
+// Adds the dark Protomaps basemap to the map, and removes it again on unmount.
+function ProtomapsBasemap() {
+  const map = useMap();
+
+  useEffect(() => {
+    const basemapLayer = leafletLayer({
+      url: BASEMAP_URL,
+      flavor: 'dark',
+      lang: 'en',
+      attribution: BASEMAP_ATTRIBUTION,
+      maxDataZoom: BASEMAP_MAX_DATA_ZOOM,
+    });
+    basemapLayer.addTo(map);
+
+    return () => {
+      map.removeLayer(basemapLayer);
+    };
+  }, [map]);
+
+  return null;
+}
+
 export default function BallparkMap() {
   const { state } = useApp();
   const { isVisited } = useVisits();
@@ -48,7 +79,7 @@ export default function BallparkMap() {
       style={{ background: '#0a0a0a' }}
     >
       <FitBoundsOnMount />
-      <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+      <ProtomapsBasemap />
       {state.parks.map(park => {
         const visited = isVisited(park.teamId);
         return (

@@ -14,3 +14,6 @@ docs*
 
 # Git worktrees
 .worktrees/
+
+# Self-hosted map basemap (large binary, uploaded to S3 separately)
+public/tiles/

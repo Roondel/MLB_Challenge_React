@@ -18,7 +18,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react':  ['react', 'react-dom', 'react-router-dom'],
-          'vendor-map':    ['leaflet', 'react-leaflet'],
+          'vendor-map':    ['leaflet', 'react-leaflet', 'protomaps-leaflet'],
           'vendor-charts': ['recharts'],
           'vendor-auth':   ['aws-amplify'],
         },

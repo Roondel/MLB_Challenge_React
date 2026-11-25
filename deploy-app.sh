@@ -89,8 +89,11 @@ fi
 echo "      Bucket: $HOSTING_BUCKET"
 
 # --delete removes stale files from previous builds (old JS chunks, asset hashes, etc.)
+# --exclude "tiles/*" leaves the self-hosted map basemap alone: it is uploaded
+# once per environment, is not part of the build, and must not be deleted here.
 aws s3 sync dist/ "s3://${HOSTING_BUCKET}" \
   --delete \
+  --exclude "tiles/*" \
   --region "$REGION"
 echo "      Sync complete."
 
